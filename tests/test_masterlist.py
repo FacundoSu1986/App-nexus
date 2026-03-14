@@ -121,6 +121,9 @@ class TestExtractRequirements:
     def test_empty(self):
         assert _extract_requirements({}) == []
 
+    def test_non_list_returns_empty(self):
+        assert _extract_requirements({"req": "single_string"}) == []
+
 
 class TestExtractIncompatibilities:
     def test_string_items(self):
@@ -131,6 +134,9 @@ class TestExtractIncompatibilities:
 
     def test_empty(self):
         assert _extract_incompatibilities({}) == []
+
+    def test_non_list_returns_empty(self):
+        assert _extract_incompatibilities({"inc": "single_string"}) == []
 
 
 class TestExtractMessages:
@@ -146,6 +152,9 @@ class TestExtractMessages:
 
     def test_empty(self):
         assert _extract_messages({}) == []
+
+    def test_non_list_returns_empty(self):
+        assert _extract_messages({"msg": "single_string"}) == []
 
 
 # ---------------------------------------------------------------------------

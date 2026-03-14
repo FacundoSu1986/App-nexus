@@ -115,21 +115,21 @@ class CompatibilityAnalyzer:
                     )
 
         # ---- LOOT incompatibilities & warnings --------------------------
-        for mod in profile.enabled_mods:
-            loot_entry = self.db.get_loot_entry(mod.name)
+        for plugin_name in profile.load_order:
+            loot_entry = self.db.get_loot_entry(plugin_name)
             if not loot_entry:
                 continue
 
             for inc_name in loot_entry.get("inc", []):
-                if _mod_in_list(inc_name, enabled_names):
+                if _mod_in_list(inc_name, profile.load_order):
                     loot_incompatibilities.append({
-                        "mod_name": mod.name,
+                        "mod_name": plugin_name,
                         "incompatible_with": inc_name,
                     })
 
             for msg in loot_entry.get("msg", []):
                 loot_warnings.append({
-                    "mod_name": mod.name,
+                    "mod_name": plugin_name,
                     "message": msg,
                 })
 

@@ -111,6 +111,48 @@ class TestMissingRequirements:
 
 
 # ---------------------------------------------------------------------------
+# LOOT lookups via load_order
+# ---------------------------------------------------------------------------
+
+class TestLootLookup:
+    def test_loot_uses_load_order_for_lookups(self, db):
+        """LOOT entries are keyed by plugin filename; the analyzer should use
+        profile.load_order (plugin filenames) not mod.name for lookups."""
+        import json
+        db.conn.execute(
+            "INSERT INTO loot_entries (name, req, inc, msg) VALUES (?, ?, ?, ?)",
+            ("SkyUI_SE.esp", "[]", json.dumps(["Conflict.esp"]), "[]"),
+        )
+        db.conn.commit()
+        profile = MO2Profile(
+            profile_name="T",
+            mods=[InstalledMod("SkyUI", enabled=True)],
+            load_order=["SkyUI_SE.esp", "Conflict.esp"],
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        assert len(report["loot_incompatibilities"]) == 1
+        assert report["loot_incompatibilities"][0]["mod_name"] == "SkyUI_SE.esp"
+
+    def test_loot_warnings_from_load_order(self, db):
+        import json
+        db.conn.execute(
+            "INSERT INTO loot_entries (name, req, inc, msg) VALUES (?, ?, ?, ?)",
+            ("USSEP.esp", "[]", "[]", json.dumps(["[warn] Needs update"])),
+        )
+        db.conn.commit()
+        profile = MO2Profile(
+            profile_name="T",
+            mods=[InstalledMod("USSEP", enabled=True)],
+            load_order=["USSEP.esp"],
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        assert len(report["loot_warnings"]) == 1
+        assert report["loot_warnings"][0]["mod_name"] == "USSEP.esp"
+
+
+# ---------------------------------------------------------------------------
 # Stats
 # ---------------------------------------------------------------------------
 
