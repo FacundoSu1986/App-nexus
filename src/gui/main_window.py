@@ -336,9 +336,8 @@ class MainWindow(tk.Tk):
                     logger.error("Error syncing '%s': %s", mod.name, exc)
         finally:
             thread_db.close()
-            # Refresh main thread DB after sync
-            self.after(0, self._db.close)
-            self.after(0, self._db.connect)
+            # Refresh main thread DB after sync (single callback to avoid race)
+            self.after(0, self._refresh_main_db)
 
         # Restore UI safely on main thread
         self.after(0, self._finish_sync)
@@ -393,6 +392,11 @@ class MainWindow(tk.Tk):
 
     def _set_status(self, message: str) -> None:
         self._status_var.set(message)
+
+    def _refresh_main_db(self) -> None:
+        """Close and reopen the main-thread DB so it sees data written by the sync thread."""
+        self._db.close()
+        self._db.connect()
 
     @staticmethod
     def _set_text(widget: tk.Text, text: str) -> None:
