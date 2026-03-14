@@ -338,9 +338,9 @@ class MainWindow(tk.Tk):
             thread_db.close()
             # Refresh main thread DB after sync (single callback to avoid race)
             self.after(0, self._refresh_main_db)
-
-        # Restore UI safely on main thread
-        self.after(0, self._finish_sync)
+            # Restore UI safely on main thread (must be inside finally so
+            # buttons are always re-enabled even when an error bubbles up)
+            self.after(0, self._finish_sync)
 
     def _finish_sync(self) -> None:
         """Helper to cleanly finish the sync process on the main thread."""

@@ -39,6 +39,7 @@ class DatabaseManager:
             self._connection = sqlite3.connect(self.db_path)
             self._connection.row_factory = sqlite3.Row
             self._connection.execute("PRAGMA foreign_keys = ON;")
+            self._connection.execute("PRAGMA journal_mode = WAL;")
             self._create_schema()
 
     def close(self) -> None:

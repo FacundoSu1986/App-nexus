@@ -187,3 +187,57 @@ class TestThreadSafety:
         assert len(thread_conn_ids) == 1
         assert thread_conn_ids[0] != id(main_db.conn)
         main_db.close()
+
+    def test_wal_mode_enabled(self, tmp_path):
+        """DatabaseManager should enable WAL journal mode for concurrent access."""
+        db_path = str(tmp_path / "wal.db")
+        manager = DatabaseManager(db_path=db_path)
+        manager.connect()
+        mode = manager.conn.execute("PRAGMA journal_mode;").fetchone()[0]
+        manager.close()
+        assert mode == "wal"
+
+    def test_concurrent_read_while_writing(self, tmp_path):
+        """Main-thread reads must not block while a background thread writes."""
+        db_path = str(tmp_path / "concurrent.db")
+
+        main_db = DatabaseManager(db_path=db_path)
+        main_db.connect()
+        main_db.upsert_mod(
+            {"mod_id": 1, "name": "Existing", "last_updated": "2024-01-01"}
+        )
+
+        import time
+
+        read_results = []
+        error_holder = []
+
+        def background_write():
+            try:
+                thread_db = DatabaseManager(db_path=db_path)
+                thread_db.connect()
+                try:
+                    for i in range(100, 105):
+                        thread_db.upsert_mod(
+                            {"mod_id": i, "name": f"Mod{i}", "last_updated": "2024-01-01"}
+                        )
+                        time.sleep(0.01)
+                finally:
+                    thread_db.close()
+            except Exception as exc:
+                error_holder.append(exc)
+
+        t = threading.Thread(target=background_write)
+        t.start()
+
+        # Attempt reads from the main thread while writes are ongoing
+        for _ in range(5):
+            result = main_db.get_mod(1)
+            read_results.append(result)
+            time.sleep(0.01)
+
+        t.join()
+        main_db.close()
+
+        assert not error_holder, f"Background thread raised: {error_holder[0]}"
+        assert all(r is not None for r in read_results)
