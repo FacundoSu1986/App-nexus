@@ -89,11 +89,8 @@ def save_to_database(entries: list[dict], db: "DatabaseManager") -> int:
 
     Returns the number of entries saved.
     """
-    count = 0
-    for entry in entries:
-        db.upsert_loot_entry(entry)
-        count += 1
-    return count
+    db.upsert_loot_entries(entries)
+    return len(entries)
 
 
 def update_masterlist(db: "DatabaseManager") -> int:
@@ -112,8 +109,11 @@ def update_masterlist(db: "DatabaseManager") -> int:
 
 def _extract_requirements(plugin: dict) -> list[str]:
     """Return a list of required plugin names from a masterlist plugin entry."""
+    raw = plugin.get("req", [])
+    if not isinstance(raw, list):
+        return []
     reqs: list[str] = []
-    for item in plugin.get("req", []):
+    for item in raw:
         if isinstance(item, str):
             reqs.append(item)
         elif isinstance(item, dict) and "name" in item:
@@ -123,8 +123,11 @@ def _extract_requirements(plugin: dict) -> list[str]:
 
 def _extract_incompatibilities(plugin: dict) -> list[str]:
     """Return a list of incompatible plugin names."""
+    raw = plugin.get("inc", [])
+    if not isinstance(raw, list):
+        return []
     incs: list[str] = []
-    for item in plugin.get("inc", []):
+    for item in raw:
         if isinstance(item, str):
             incs.append(item)
         elif isinstance(item, dict) and "name" in item:
@@ -134,8 +137,11 @@ def _extract_incompatibilities(plugin: dict) -> list[str]:
 
 def _extract_messages(plugin: dict) -> list[str]:
     """Return a list of warning/info messages."""
+    raw = plugin.get("msg", [])
+    if not isinstance(raw, list):
+        return []
     msgs: list[str] = []
-    for item in plugin.get("msg", []):
+    for item in raw:
         if isinstance(item, str):
             msgs.append(item)
         elif isinstance(item, dict):

@@ -237,6 +237,33 @@ class DatabaseManager:
             logger.error("SQL error upserting LOOT entry %s: %s", entry.get("name"), exc)
             raise
 
+    def upsert_loot_entries(self, entries: list[dict]) -> None:
+        """Insert or replace multiple LOOT masterlist entries in a single transaction."""
+        try:
+            self.conn.executemany(
+                """
+                INSERT INTO loot_entries (name, req, inc, msg)
+                VALUES (:name, :req, :inc, :msg)
+                ON CONFLICT(name) DO UPDATE SET
+                    req = excluded.req,
+                    inc = excluded.inc,
+                    msg = excluded.msg
+                """,
+                [
+                    {
+                        "name": e["name"],
+                        "req": json.dumps(e.get("req", [])),
+                        "inc": json.dumps(e.get("inc", [])),
+                        "msg": json.dumps(e.get("msg", [])),
+                    }
+                    for e in entries
+                ],
+            )
+            self.conn.commit()
+        except sqlite3.Error as exc:
+            logger.error("SQL error batch upserting LOOT entries: %s", exc)
+            raise
+
     def get_loot_entry(self, name: str) -> Optional[dict]:
         """Fetch a single LOOT entry by plugin name."""
         row = self.conn.execute(

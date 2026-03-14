@@ -113,6 +113,26 @@ class TestRequirements:
         assert stored[0]["required_name"] == "New Req"
 
 
+class TestLootEntries:
+    def test_upsert_loot_entries_batch(self, db):
+        entries = [
+            {"name": "A.esp", "req": ["B.esp"], "inc": [], "msg": []},
+            {"name": "C.esp", "req": [], "inc": ["D.esp"], "msg": ["warning"]},
+        ]
+        db.upsert_loot_entries(entries)
+        a = db.get_loot_entry("A.esp")
+        c = db.get_loot_entry("C.esp")
+        assert a is not None
+        assert a["req"] == ["B.esp"]
+        assert c is not None
+        assert c["inc"] == ["D.esp"]
+        assert c["msg"] == ["warning"]
+
+    def test_upsert_loot_entries_empty(self, db):
+        db.upsert_loot_entries([])
+        assert db.get_all_loot_entries() == []
+
+
 class TestContextManager:
     def test_context_manager(self, tmp_path):
         path = str(tmp_path / "ctx.db")
