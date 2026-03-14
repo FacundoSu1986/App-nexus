@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MASTERLIST_URL = (
-    "https://raw.githubusercontent.com/loot/skyrimse/refs/heads/main/masterlist.yaml"
+    "https://raw.githubusercontent.com/loot/skyrimse/v0.17/masterlist.yaml"
 )
 
 

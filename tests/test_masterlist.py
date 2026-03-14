@@ -52,8 +52,8 @@ plugins:
 # ---------------------------------------------------------------------------
 
 class TestMasterlistUrl:
-    def test_url_uses_refs_heads_path(self):
-        assert "refs/heads/main" in MASTERLIST_URL
+    def test_url_uses_v0_17_tag(self):
+        assert "loot/skyrimse/v0.17/" in MASTERLIST_URL
 
     def test_url_points_to_masterlist_yaml(self):
         assert MASTERLIST_URL.endswith("masterlist.yaml")
