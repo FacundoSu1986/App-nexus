@@ -4,6 +4,7 @@ import pytest
 
 from src.database.manager import DatabaseManager
 from src.loot.masterlist import (
+    MASTERLIST_URL,
     parse_masterlist,
     save_to_database,
     _extract_requirements,
@@ -49,6 +50,14 @@ plugins:
 # ---------------------------------------------------------------------------
 # parse_masterlist
 # ---------------------------------------------------------------------------
+
+class TestMasterlistUrl:
+    def test_url_uses_refs_heads_path(self):
+        assert "refs/heads/main" in MASTERLIST_URL
+
+    def test_url_points_to_masterlist_yaml(self):
+        assert MASTERLIST_URL.endswith("masterlist.yaml")
+
 
 class TestParseMasterlist:
     def test_parses_all_plugins(self):
