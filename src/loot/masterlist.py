@@ -30,7 +30,13 @@ def download_masterlist(url: str = MASTERLIST_URL, timeout: int = 60) -> str:
     """Download the LOOT masterlist YAML and return the raw text."""
     logger.info("Downloading LOOT masterlist from %s", url)
     response = requests.get(url, timeout=timeout)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        raise requests.HTTPError(
+            f"Failed to download LOOT masterlist from {url} "
+            f"(HTTP {response.status_code})"
+        ) from exc
     return response.text
 
 

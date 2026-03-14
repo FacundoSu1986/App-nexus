@@ -116,10 +116,9 @@ class CompatibilityAnalyzer:
 
         # ---- LOOT incompatibilities & warnings --------------------------
         for mod in profile.enabled_mods:
-            loot_results = self.db.search_loot_entries_by_name(mod.name)
-            if not loot_results:
+            loot_entry = self.db.get_loot_entry(mod.name)
+            if not loot_entry:
                 continue
-            loot_entry = loot_results[0]
 
             for inc_name in loot_entry.get("inc", []):
                 if _mod_in_list(inc_name, enabled_names):
