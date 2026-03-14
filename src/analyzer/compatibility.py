@@ -17,11 +17,27 @@ Report structure
         },
         ...
     ],
+    "loot_incompatibilities": [
+        {
+            "mod_name":           str,   # plugin filename from load order
+            "incompatible_with":  str,   # conflicting plugin filename
+        },
+        ...
+    ],
+    "loot_warnings": [
+        {
+            "mod_name":  str,   # plugin filename from load order
+            "message":   str,   # LOOT warning/message text
+        },
+        ...
+    ],
     "stats": {
         "total_mods":          int,
         "enabled_mods":        int,
         "missing_count":       int,
         "missing_patches":     int,
+        "loot_incompatible":   int,
+        "loot_warnings":       int,
     }
 }
 """

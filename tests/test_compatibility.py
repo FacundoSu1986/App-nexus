@@ -151,6 +151,94 @@ class TestLootLookup:
         assert len(report["loot_warnings"]) == 1
         assert report["loot_warnings"][0]["mod_name"] == "USSEP.esp"
 
+    def test_mod_folder_name_does_not_match_loot_plugin(self, db):
+        """Regression: mod folder names (e.g. 'Immersive Armors') must NOT
+        match LOOT entries keyed by plugin filename
+        (e.g. 'Hothtrooper44_ArmorCompilation.esp').  LOOT lookups must use
+        the load_order list exclusively."""
+        import json
+        db.conn.execute(
+            "INSERT INTO loot_entries (name, req, inc, msg) VALUES (?, ?, ?, ?)",
+            (
+                "Hothtrooper44_ArmorCompilation.esp",
+                "[]",
+                json.dumps(["SomeConflict.esp"]),
+                json.dumps(["[warn] check load order"]),
+            ),
+        )
+        db.conn.commit()
+
+        # Plugin is NOT in load_order, so LOOT data must be ignored even
+        # though the mod folder name is present in enabled_mods.
+        profile = MO2Profile(
+            profile_name="T",
+            mods=[InstalledMod("Immersive Armors", enabled=True)],
+            load_order=[],
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        assert report["loot_incompatibilities"] == []
+        assert report["loot_warnings"] == []
+
+    def test_loot_found_only_when_plugin_in_load_order(self, db):
+        """LOOT incompatibilities surface only when the plugin filename
+        appears in profile.load_order, not because a similarly-named mod
+        folder exists."""
+        import json
+        db.conn.execute(
+            "INSERT INTO loot_entries (name, req, inc, msg) VALUES (?, ?, ?, ?)",
+            (
+                "Hothtrooper44_ArmorCompilation.esp",
+                "[]",
+                json.dumps(["SomeConflict.esp"]),
+                json.dumps(["[warn] check load order"]),
+            ),
+        )
+        db.conn.commit()
+
+        # Now put the plugin in load_order together with its conflict.
+        profile = MO2Profile(
+            profile_name="T",
+            mods=[InstalledMod("Immersive Armors", enabled=True)],
+            load_order=[
+                "Hothtrooper44_ArmorCompilation.esp",
+                "SomeConflict.esp",
+            ],
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        assert len(report["loot_incompatibilities"]) == 1
+        assert (
+            report["loot_incompatibilities"][0]["mod_name"]
+            == "Hothtrooper44_ArmorCompilation.esp"
+        )
+        assert len(report["loot_warnings"]) == 1
+
+    def test_loot_conflict_not_in_load_order_is_ignored(self, db):
+        """If the conflicting plugin from LOOT is not in load_order the
+        incompatibility should NOT be reported."""
+        import json
+        db.conn.execute(
+            "INSERT INTO loot_entries (name, req, inc, msg) VALUES (?, ?, ?, ?)",
+            (
+                "Hothtrooper44_ArmorCompilation.esp",
+                "[]",
+                json.dumps(["SomeConflict.esp"]),
+                "[]",
+            ),
+        )
+        db.conn.commit()
+
+        # Plugin present but the conflicting plugin is NOT installed.
+        profile = MO2Profile(
+            profile_name="T",
+            mods=[InstalledMod("Immersive Armors", enabled=True)],
+            load_order=["Hothtrooper44_ArmorCompilation.esp"],
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        assert report["loot_incompatibilities"] == []
+
 
 # ---------------------------------------------------------------------------
 # Stats
