@@ -281,52 +281,64 @@ class MainWindow(tk.Tk):
         Iterate over the enabled mods and fetch their Nexus page by nexus_id
         read from each mod's meta.ini.  Falls back gracefully when the id is
         missing or zero.
+
+        Uses a thread-local DatabaseManager because SQLite connections cannot
+        be shared across threads.
         """
-        mods = self._profile.enabled_mods  # type: ignore[union-attr]
-        total = len(mods)
+        # Create a thread-local DB connection
+        thread_db = DatabaseManager(db_path=self._db.db_path)
+        thread_db.connect()
+        try:
+            mods = self._profile.enabled_mods  # type: ignore[union-attr]
+            total = len(mods)
 
-        for idx, mod in enumerate(mods, start=1):
-            self.after(0, self._set_status, f"Syncing mod {idx}/{total}: {mod.name}…")
+            for idx, mod in enumerate(mods, start=1):
+                self.after(0, self._set_status, f"Syncing mod {idx}/{total}: {mod.name}…")
 
-            # Skip mods without a valid nexus_id
-            if not mod.nexus_id or mod.nexus_id == "0":
-                self.after(
-                    0, self._set_status,
-                    f"Skipping '{mod.name}' (no Nexus ID in meta.ini).",
-                )
-                continue
+                # Skip mods without a valid nexus_id
+                if not mod.nexus_id or mod.nexus_id == "0":
+                    self.after(
+                        0, self._set_status,
+                        f"Skipping '{mod.name}' (no Nexus ID in meta.ini).",
+                    )
+                    continue
 
-            nexus_id = int(mod.nexus_id)
+                nexus_id = int(mod.nexus_id)
 
-            # Check local cache to avoid burning API quota
-            if self._db.get_mod(nexus_id):
-                self.after(
-                    0, self._set_status,
-                    f"Skipping '{mod.name}' (already cached).",
-                )
-                continue
+                # Check local cache to avoid burning API quota
+                if thread_db.get_mod(nexus_id):
+                    self.after(
+                        0, self._set_status,
+                        f"Skipping '{mod.name}' (already cached).",
+                    )
+                    continue
 
-            try:
-                full_data = self._api.get_mod(nexus_id)  # type: ignore[union-attr]
-                self._db.upsert_mod(full_data)
+                try:
+                    full_data = self._api.get_mod(nexus_id)  # type: ignore[union-attr]
+                    thread_db.upsert_mod(full_data)
 
-                requirements = self._api.get_mod_requirements(nexus_id)  # type: ignore[union-attr]
-                if requirements:
-                    self._db.upsert_requirements(nexus_id, requirements)
+                    requirements = self._api.get_mod_requirements(nexus_id)  # type: ignore[union-attr]
+                    if requirements:
+                        thread_db.upsert_requirements(nexus_id, requirements)
 
-            except RateLimitError:
-                self.after(
-                    0,
-                    self._set_status,
-                    "Rate limit reached. Stopping sync.",
-                )
-                break
-            except NexusAPIError as exc:
-                self.after(0, self._set_status, f"API error for '{mod.name}': {exc}")
-                logger.error("API error for '%s': %s", mod.name, exc)
-            except Exception as exc:
-                self.after(0, self._set_status, f"Error syncing '{mod.name}': {exc}")
-                logger.error("Error syncing '%s': %s", mod.name, exc)
+                except RateLimitError:
+                    self.after(
+                        0,
+                        self._set_status,
+                        "Rate limit reached. Stopping sync.",
+                    )
+                    break
+                except NexusAPIError as exc:
+                    self.after(0, self._set_status, f"API error for '{mod.name}': {exc}")
+                    logger.error("API error for '%s': %s", mod.name, exc)
+                except Exception as exc:
+                    self.after(0, self._set_status, f"Error syncing '{mod.name}': {exc}")
+                    logger.error("Error syncing '%s': %s", mod.name, exc)
+        finally:
+            thread_db.close()
+            # Refresh main thread DB after sync
+            self.after(0, self._db.close)
+            self.after(0, self._db.connect)
 
         # Restore UI safely on main thread
         self.after(0, self._finish_sync)

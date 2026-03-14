@@ -1,5 +1,7 @@
 """Tests for DatabaseManager."""
 
+import threading
+
 import pytest
 
 from src.database.manager import DatabaseManager
@@ -119,3 +121,69 @@ class TestContextManager:
             assert db.get_mod(1) is not None
         # After __exit__ the connection should be closed
         assert db._connection is None
+
+
+class TestThreadSafety:
+    """Verify that a thread-local DatabaseManager can safely access the same DB file."""
+
+    def test_thread_local_db_writes_visible_after_close(self, tmp_path):
+        """A separate DatabaseManager in a background thread can write data
+        that is visible from the main-thread connection after both close/reopen."""
+        db_path = str(tmp_path / "thread.db")
+
+        # Main-thread connection — seed schema
+        main_db = DatabaseManager(db_path=db_path)
+        main_db.connect()
+
+        error_holder = []
+
+        def background_work():
+            try:
+                thread_db = DatabaseManager(db_path=db_path)
+                thread_db.connect()
+                try:
+                    thread_db.upsert_mod(
+                        {"mod_id": 42, "name": "ThreadMod", "last_updated": "2024-01-01"}
+                    )
+                finally:
+                    thread_db.close()
+            except Exception as exc:
+                error_holder.append(exc)
+
+        t = threading.Thread(target=background_work)
+        t.start()
+        t.join()
+
+        assert not error_holder, f"Background thread raised: {error_holder[0]}"
+
+        # Refresh main connection to see the new data
+        main_db.close()
+        main_db.connect()
+        mod = main_db.get_mod(42)
+        main_db.close()
+
+        assert mod is not None
+        assert mod["name"] == "ThreadMod"
+
+    def test_thread_local_db_does_not_share_connection(self, tmp_path):
+        """Two DatabaseManager instances on different threads use distinct connections."""
+        db_path = str(tmp_path / "thread2.db")
+
+        main_db = DatabaseManager(db_path=db_path)
+        main_db.connect()
+
+        thread_conn_ids = []
+
+        def capture_conn_id():
+            thread_db = DatabaseManager(db_path=db_path)
+            thread_db.connect()
+            thread_conn_ids.append(id(thread_db.conn))
+            thread_db.close()
+
+        t = threading.Thread(target=capture_conn_id)
+        t.start()
+        t.join()
+
+        assert len(thread_conn_ids) == 1
+        assert thread_conn_ids[0] != id(main_db.conn)
+        main_db.close()
