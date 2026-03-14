@@ -92,6 +92,8 @@ class CompatibilityAnalyzer:
         """
         enabled_names = profile.enabled_mod_names
         missing_requirements: list = []
+        loot_incompatibilities: list = []
+        loot_warnings: list = []
 
         for mod in profile.enabled_mods:
             db_results = self.db.search_mods_by_name(mod.name)
@@ -112,16 +114,39 @@ class CompatibilityAnalyzer:
                         }
                     )
 
+        # ---- LOOT incompatibilities & warnings --------------------------
+        for mod in profile.enabled_mods:
+            loot_entry = self.db.get_loot_entry(mod.name)
+            if not loot_entry:
+                continue
+
+            for inc_name in loot_entry.get("inc", []):
+                if _mod_in_list(inc_name, enabled_names):
+                    loot_incompatibilities.append({
+                        "mod_name": mod.name,
+                        "incompatible_with": inc_name,
+                    })
+
+            for msg in loot_entry.get("msg", []):
+                loot_warnings.append({
+                    "mod_name": mod.name,
+                    "message": msg,
+                })
+
         missing_patches = sum(
             1 for m in missing_requirements if m["is_patch"]
         )
 
         return {
             "missing_requirements": missing_requirements,
+            "loot_incompatibilities": loot_incompatibilities,
+            "loot_warnings": loot_warnings,
             "stats": {
                 "total_mods": len(profile.mods),
                 "enabled_mods": len(profile.enabled_mods),
                 "missing_count": len(missing_requirements),
                 "missing_patches": missing_patches,
+                "loot_incompatible": len(loot_incompatibilities),
+                "loot_warnings": len(loot_warnings),
             },
         }
