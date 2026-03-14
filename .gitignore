@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/dist/
+*.spec.bak
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# PyInstaller output
+*.exe
+
+# Test
+.coverage
+.pytest_cache/
+htmlcov/
