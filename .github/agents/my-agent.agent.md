@@ -4,16 +4,13 @@
 # To make this agent available, merge this file into the default repository branch.
 # For format details, see: https://gh.io/customagents/config
 
-name:
-description:
+name: nexus-api-expert
+description: Python expert focused on Tkinter desktop apps and Nexus Mods API integration.
 ---
 
 # My Agent
 
-Describe what your agent does here...---
-name: nexus-api-expert
-description: Python expert focused on Tkinter desktop apps and Nexus Mods API integration.
----
+Describe what your agent does here...
 
 # Nexus App Development Agent
 
