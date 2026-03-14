@@ -5,6 +5,7 @@ Stores mod metadata and requirements so the app works offline after the
 initial sync and stays fast on subsequent lookups.
 """
 
+import json
 import logging
 import sqlite3
 import os
@@ -92,6 +93,13 @@ class DatabaseManager:
                 required_name   TEXT    NOT NULL,
                 required_url    TEXT,
                 is_patch        INTEGER NOT NULL DEFAULT 0  -- 1 = this is a compatibility patch
+            );
+
+            CREATE TABLE IF NOT EXISTS loot_entries (
+                name            TEXT PRIMARY KEY,
+                req             TEXT NOT NULL DEFAULT '[]',   -- JSON list of required plugins
+                inc             TEXT NOT NULL DEFAULT '[]',   -- JSON list of incompatible plugins
+                msg             TEXT NOT NULL DEFAULT '[]'    -- JSON list of messages
             );
             """
         )
@@ -200,3 +208,70 @@ class DatabaseManager:
             "SELECT * FROM requirements WHERE mod_id = ?", (mod_id,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # LOOT entries
+    # ------------------------------------------------------------------
+
+    def upsert_loot_entry(self, entry: dict) -> None:
+        """Insert or replace a LOOT masterlist entry."""
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO loot_entries (name, req, inc, msg)
+                VALUES (:name, :req, :inc, :msg)
+                ON CONFLICT(name) DO UPDATE SET
+                    req = excluded.req,
+                    inc = excluded.inc,
+                    msg = excluded.msg
+                """,
+                {
+                    "name": entry["name"],
+                    "req": json.dumps(entry.get("req", [])),
+                    "inc": json.dumps(entry.get("inc", [])),
+                    "msg": json.dumps(entry.get("msg", [])),
+                },
+            )
+            self.conn.commit()
+        except sqlite3.Error as exc:
+            logger.error("SQL error upserting LOOT entry %s: %s", entry.get("name"), exc)
+            raise
+
+    def get_loot_entry(self, name: str) -> Optional[dict]:
+        """Fetch a single LOOT entry by plugin name."""
+        row = self.conn.execute(
+            "SELECT * FROM loot_entries WHERE name = ?", (name,)
+        ).fetchone()
+        if row is None:
+            return None
+        entry = dict(row)
+        entry["req"] = json.loads(entry["req"])
+        entry["inc"] = json.loads(entry["inc"])
+        entry["msg"] = json.loads(entry["msg"])
+        return entry
+
+    def get_all_loot_entries(self) -> list:
+        """Fetch all LOOT entries."""
+        rows = self.conn.execute("SELECT * FROM loot_entries ORDER BY name").fetchall()
+        result = []
+        for row in rows:
+            entry = dict(row)
+            entry["req"] = json.loads(entry["req"])
+            entry["inc"] = json.loads(entry["inc"])
+            entry["msg"] = json.loads(entry["msg"])
+            result.append(entry)
+        return result
+
+    def search_loot_entries_by_name(self, name: str) -> list:
+        """Search LOOT entries using LIKE matching."""
+        rows = self.conn.execute(
+            "SELECT * FROM loot_entries WHERE name LIKE ?", (f"%{name}%",)
+        ).fetchall()
+        result = []
+        for row in rows:
+            entry = dict(row)
+            entry["req"] = json.loads(entry["req"])
+            entry["inc"] = json.loads(entry["inc"])
+            entry["msg"] = json.loads(entry["msg"])
+            result.append(entry)
+        return result

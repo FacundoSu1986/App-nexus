@@ -23,6 +23,7 @@ import webbrowser
 from src.analyzer.compatibility import CompatibilityAnalyzer
 from src.database.manager import DatabaseManager
 from src.gui.mod_detail_frame import ModDetailFrame
+from src.loot.masterlist import update_masterlist
 from src.mo2.reader import MO2Reader, MO2Profile
 from src.nexus.api import NexusAPI, RateLimitError, NexusAPIError
 
@@ -114,6 +115,17 @@ class MainWindow(tk.Tk):
         )
         self._btn_analyse.pack(side="left")
 
+        ttk.Separator(toolbar, orient="vertical").pack(
+            side="left", fill="y", padx=8
+        )
+
+        self._btn_loot = ttk.Button(
+            toolbar,
+            text="📋 Update LOOT Data",
+            command=self._update_loot_threaded,
+        )
+        self._btn_loot.pack(side="left")
+
     def _build_main_area(self) -> None:
         paned = ttk.PanedWindow(self, orient="horizontal")
         paned.grid(row=1, column=0, sticky="nsew", padx=6, pady=4)
@@ -169,14 +181,26 @@ class MainWindow(tk.Tk):
         self._report_text.configure(yscrollcommand=sb.set)
 
     def _build_status_bar(self) -> None:
+        status_frame = ttk.Frame(self)
+        status_frame.grid(row=3, column=0, sticky="ew")
+        status_frame.columnconfigure(0, weight=1)
+
         self._status_var = tk.StringVar(value="Ready.")
         ttk.Label(
-            self,
+            status_frame,
             textvariable=self._status_var,
             relief="sunken",
             anchor="w",
             padding=(4, 2),
-        ).grid(row=3, column=0, sticky="ew")
+        ).grid(row=0, column=0, sticky="ew")
+
+        ttk.Label(
+            status_frame,
+            text="Masterlist data: LOOT (loot.github.io) — CC BY-NC-SA 4.0",
+            anchor="e",
+            foreground="grey",
+            padding=(4, 2),
+        ).grid(row=0, column=1, sticky="e")
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -350,6 +374,38 @@ class MainWindow(tk.Tk):
         self._btn_analyse.config(state="normal")
         logger.info("Sync complete.")
 
+    def _update_loot_threaded(self) -> None:
+        """Run the LOOT masterlist update in a background thread."""
+        self._btn_loot.config(state="disabled")
+        self._btn_sync.config(state="disabled")
+        self._btn_analyse.config(state="disabled")
+
+        thread = threading.Thread(target=self._update_loot, daemon=True)
+        thread.start()
+
+    def _update_loot(self) -> None:
+        """Download and parse the LOOT masterlist in a background thread."""
+        thread_db = DatabaseManager(db_path=self._db.db_path)
+        thread_db.connect()
+        try:
+            self.after(0, self._set_status, "Downloading LOOT masterlist…")
+            count = update_masterlist(thread_db)
+            self.after(0, self._set_status, f"LOOT masterlist updated: {count} plugin entries.")
+            logger.info("LOOT masterlist updated: %d entries.", count)
+        except Exception as exc:
+            self.after(0, self._set_status, f"LOOT update failed: {exc}")
+            logger.error("LOOT update failed: %s", exc)
+        finally:
+            thread_db.close()
+            self.after(0, self._refresh_main_db)
+            self.after(0, self._finish_loot_update)
+
+    def _finish_loot_update(self) -> None:
+        """Re-enable buttons after LOOT update completes."""
+        self._btn_loot.config(state="normal")
+        self._btn_sync.config(state="normal")
+        self._btn_analyse.config(state="normal")
+
     def _analyse(self) -> None:
         if self._profile is None:
             messagebox.showwarning(
@@ -366,6 +422,8 @@ class MainWindow(tk.Tk):
             "╔══════════════════════════════════════════════════════════╗",
             f"  Mods analysed : {stats['enabled_mods']} enabled / {stats['total_mods']} total",
             f"  Missing mods  : {stats['missing_count']}  (patches: {stats['missing_patches']})",
+            f"  LOOT conflicts: {stats.get('loot_incompatible', 0)}",
+            f"  LOOT warnings : {stats.get('loot_warnings', 0)}",
             "╚══════════════════════════════════════════════════════════╝",
             "",
         ]
@@ -381,7 +439,25 @@ class MainWindow(tk.Tk):
                     lines.append(f"    → {m['required_url']}")
             lines.append("")
 
-        if not report["missing_requirements"]:
+        if report.get("loot_incompatibilities"):
+            lines.append("── LOOT INCOMPATIBILITIES ──")
+            for inc in report["loot_incompatibilities"]:
+                lines.append(
+                    f"  [INCOMPATIBLE] '{inc['mod_name']}' conflicts with '{inc['incompatible_with']}'"
+                )
+            lines.append("")
+
+        if report.get("loot_warnings"):
+            lines.append("── LOOT WARNINGS ──")
+            for w in report["loot_warnings"]:
+                lines.append(f"  ⚠ {w['mod_name']}: {w['message']}")
+            lines.append("")
+
+        if (
+            not report["missing_requirements"]
+            and not report.get("loot_incompatibilities")
+            and not report.get("loot_warnings")
+        ):
             lines.append("✔ No issues detected in the cached database.")
 
         self._set_text(self._report_text, "\n".join(lines))
