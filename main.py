@@ -38,6 +38,10 @@ def main() -> None:
     logger = logging.getLogger(__name__)
     logger.info("App-nexus starting.")
     app = MainWindow()
+
+    import sv_ttk
+    sv_ttk.set_theme("dark")
+
     app.mainloop()
     logger.info("App-nexus exiting.")
 
