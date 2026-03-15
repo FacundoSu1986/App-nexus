@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 
 import sv_ttk
 
-from src.analyzer.compatibility import CompatibilityAnalyzer
+from src.analyzer.compatibility import CompatibilityAnalyzer, compute_mod_statuses
 from src.database.manager import DatabaseManager
 from src.gui.mod_detail_frame import ModDetailFrame
 from src.loot.masterlist import update_masterlist
@@ -51,6 +51,7 @@ class MainWindow(tk.Tk):
 
         self._profile: Optional[MO2Profile] = None
         self._api: Optional[NexusAPI] = None
+        self._last_report: Optional[dict] = None
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -304,8 +305,16 @@ class MainWindow(tk.Tk):
         self._mod_list.delete(*self._mod_list.get_children())
         if self._profile is None:
             return
+        statuses = (
+            compute_mod_statuses(self._last_report, self._profile.mods)
+            if self._last_report is not None
+            else {}
+        )
         for mod in self._profile.mods:
-            status = "✔ ON" if mod.enabled else "✘ OFF"
+            if not mod.enabled:
+                status = "✘ OFF"
+            else:
+                status = statuses.get(mod.name, "✔ ON")
             tag = "enabled" if mod.enabled else "disabled"
             self._mod_list.insert("", tk.END, values=(mod.name, status), tags=(tag,))
         self._mod_list.tag_configure("disabled", foreground="grey")
@@ -460,6 +469,8 @@ class MainWindow(tk.Tk):
             return
         analyser = CompatibilityAnalyzer(self._db)
         report = analyser.analyse(self._profile)
+        self._last_report = report
+        self._populate_mod_list()
         self._display_report(report)
 
     # ------------------------------------------------------------------
