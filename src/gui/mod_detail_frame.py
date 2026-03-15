@@ -17,16 +17,14 @@ def clean_bbcode(text: str) -> str:
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
 
     # Remove [img]...[/img] entirely
-    text = re.sub(r"\[img\].*?\[/img\]", "", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"\[img\][^\[]*\[/img\]", "", text, flags=re.IGNORECASE)
 
     # Remove [youtube]...[/youtube] entirely
-    text = re.sub(
-        r"\[youtube\].*?\[/youtube\]", "", text, flags=re.IGNORECASE | re.DOTALL
-    )
+    text = re.sub(r"\[youtube\][^\[]*\[/youtube\]", "", text, flags=re.IGNORECASE)
 
     # Convert [url=...]text[/url] -> text
     text = re.sub(
-        r"\[url=[^\]]*\](.*?)\[/url\]", r"\1", text, flags=re.IGNORECASE | re.DOTALL
+        r"\[url=[^\]]*\]([^\[]*)\[/url\]", r"\1", text, flags=re.IGNORECASE
     )
 
     # Remove simple BBCode tags (opening and closing)
