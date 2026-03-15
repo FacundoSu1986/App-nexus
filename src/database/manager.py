@@ -37,7 +37,7 @@ class DatabaseManager:
         """Open (or reuse) the database connection and ensure schema exists."""
         if self._connection is None:
             logger.info("Connecting to database: %s", self.db_path)
-            self._connection = sqlite3.connect(self.db_path)
+            self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
             self._connection.row_factory = sqlite3.Row
             self._connection.execute("PRAGMA foreign_keys = ON;")
             self._connection.execute("PRAGMA journal_mode = WAL;")

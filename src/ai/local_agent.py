@@ -15,7 +15,7 @@ import json
 import logging
 from typing import Optional
 
-from src.ai.tools import CHAT_SYSTEM_PROMPT, OLLAMA_TOOLS, ToolExecutor
+from src.ai.tools import ToolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -155,58 +155,81 @@ def analyse_mod(
 # Conversational chat with function calling
 # ------------------------------------------------------------------
 
-_MAX_TOOL_ROUNDS = 5
+CHAT_SYSTEM_PROMPT = (
+    "You are the expert assistant of App-nexus, a mod manager for "
+    "Skyrim SE/AE.\n"
+    "Your goal is to help the user diagnose compatibility problems "
+    "and missing dependencies.\n"
+    "If asked about a mod, ALWAYS use the available tools to search "
+    "the local database before responding.\n"
+    "Be direct, technical and friendly. Do not talk about other games.\n"
+    "Only answer questions related to Skyrim modding."
+)
 
-
-def _build_db_context(db) -> str:
-    """Build a summary of the local mod database for the system prompt."""
-    if not hasattr(db, "get_all_mods"):
-        logger.debug("db object has no get_all_mods(); skipping DB context.")
-        return ""
-    try:
-        mods = db.get_all_mods()
-        if not mods:
-            return ""
-        lines = ["The user's local mod database contains these mods:"]
-        for m in mods:
-            line = f"- {m.get('name', 'Unknown')}"
-            if m.get("version"):
-                line += f" (v{m['version']})"
-            lines.append(line)
-        return "\n".join(lines)
-    except Exception as exc:
-        logger.debug("Failed to build DB context: %s", exc)
-        return ""
-
-
-def _chat_without_tools(
-    ollama,
-    model: str,
-    history: list,
-    db,
-) -> tuple[str, list]:
-    """Fallback chat when the model does not support tool calling.
-
-    Embeds database context into the system prompt so the model can still
-    answer questions about the user's mod list.
-    """
-    db_context = _build_db_context(db)
-    system_prompt = CHAT_SYSTEM_PROMPT
-    if db_context:
-        system_prompt = f"{CHAT_SYSTEM_PROMPT}\n\n{db_context}"
-
-    # Rebuild history: replace the system message and keep user/assistant msgs
-    fallback_history: list[dict] = [
-        {"role": "system", "content": system_prompt}
-    ]
-    for msg in history:
-        if msg.get("role") in ("user", "assistant"):
-            fallback_history.append(msg)
-
-    response = ollama.chat(model=model, messages=fallback_history)
-    msg = response["message"]
-    fallback_history.append(msg)
-    return msg.get("content", ""), fallback_history
+CHAT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_mod_in_db",
+            "description": (
+                "Search for a mod in the local App-nexus database to see "
+                "if it is installed or cached."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "mod_name": {
+                        "type": "string",
+                        "description": "Name of the mod (e.g.: SkyUI, Ordinator)",
+                    }
+                },
+                "required": ["mod_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_mod_requirements",
+            "description": (
+                "Gets the list of dependencies and required patches for "
+                "a mod using its Nexus ID."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nexus_id": {
+                        "type": "integer",
+                        "description": "The numeric ID of the mod on Nexus Mods.",
+                    }
+                },
+                "required": ["nexus_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_loot_warnings",
+            "description": (
+                "Gets LOOT warnings for a specific plugin filename."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "plugin_name": {
+                        "type": "string",
+                        "description": (
+                            "Plugin filename (e.g.: SkyUI_SE.esp, "
+                            "Immersive Weapons.esp)"
+                        ),
+                    }
+                },
+                "required": ["plugin_name"],
+            },
+        },
+    },
+]
 
 
 def chat(
@@ -216,7 +239,10 @@ def chat(
     history: Optional[list] = None,
 ) -> tuple[str, list]:
     """
-    Send a conversational message and let the model call tools as needed.
+    Main chat function called by chat_panel.py.
+
+    Interacts with Ollama, executes tools if the AI requests them,
+    and returns the response.
 
     Parameters
     ----------
@@ -243,46 +269,124 @@ def chat(
 
     history.append({"role": "user", "content": user_message})
 
-    for _ in range(_MAX_TOOL_ROUNDS):
-        try:
-            response = ollama.chat(
+    try:
+        # Step 1: First call to AI passing the tools
+        response = ollama.chat(
+            model=model,
+            messages=history,
+            tools=CHAT_TOOLS,
+        )
+
+        # Step 2: Check if AI decided to use a tool
+        tool_calls = (
+            response.message.tool_calls
+            if hasattr(response, "message")
+            and hasattr(response.message, "tool_calls")
+            else response.get("message", {}).get("tool_calls")
+        )
+
+        if tool_calls:
+            # Append the assistant message that requested the tool calls
+            if hasattr(response, "message"):
+                history.append(response.message)
+            else:
+                history.append(response["message"])
+
+            for tool in tool_calls:
+                # Support both attribute and dict access
+                if hasattr(tool, "function"):
+                    tool_name = tool.function.name
+                    args = tool.function.arguments
+                else:
+                    fn = tool["function"]
+                    tool_name = fn["name"]
+                    args = fn.get("arguments", {})
+
+                logger.info(
+                    "AI requested tool: %s with args: %s", tool_name, args
+                )
+
+                tool_result_str = ""
+
+                if tool_name == "search_mod_in_db":
+                    results = db.search_mods_by_name(args["mod_name"])
+                    if results:
+                        tool_result_str = json.dumps(
+                            [dict(r) for r in results], default=str
+                        )
+                    else:
+                        tool_result_str = (
+                            f"Mod '{args['mod_name']}' not found in database."
+                        )
+
+                elif tool_name == "get_mod_requirements":
+                    reqs = db.get_requirements(args["nexus_id"])
+                    if reqs:
+                        tool_result_str = json.dumps(
+                            [dict(r) for r in reqs], default=str
+                        )
+                    else:
+                        tool_result_str = (
+                            "No requirements registered for this mod ID."
+                        )
+
+                elif tool_name == "get_loot_warnings":
+                    entry = db.get_loot_entry(args["plugin_name"])
+                    if entry:
+                        tool_result_str = json.dumps(
+                            dict(entry), default=str
+                        )
+                    else:
+                        tool_result_str = (
+                            f"No LOOT warnings found for "
+                            f"'{args['plugin_name']}'."
+                        )
+                else:
+                    # Delegate unknown tools to the ToolExecutor
+                    tool_result_str = executor.execute(tool_name, args)
+
+                # Step 3: Return tool result to AI
+                history.append({
+                    "role": "tool",
+                    "content": tool_result_str,
+                    "name": tool_name,
+                })
+
+            # Step 4: Second call so AI reads DB data and writes final response
+            final_response = ollama.chat(
                 model=model,
                 messages=history,
-                tools=OLLAMA_TOOLS,
             )
-        except Exception as exc:
-            # Ollama raises a generic error whose message contains "tool"
-            # when the model doesn't support function calling.  Re-raise
-            # any other errors so they aren't silently swallowed.
-            if "tool" not in str(exc).lower():
-                raise
-            logger.warning(
-                "Model '%s' does not support tools; falling back to "
-                "simple chat.",
-                model,
+            if hasattr(final_response, "message"):
+                history.append(final_response.message)
+                return final_response.message.content, history
+            else:
+                msg = final_response["message"]
+                history.append(msg)
+                return msg.get("content", ""), history
+
+        else:
+            # No tools used — simple conversation
+            if hasattr(response, "message"):
+                history.append(response.message)
+                return response.message.content, history
+            else:
+                msg = response["message"]
+                history.append(msg)
+                return msg.get("content", ""), history
+
+    except Exception as e:
+        logger.error("Error in Ollama chat: %s", e)
+        # Fallback: try without tools if model doesn't support them
+        try:
+            context = f"{CHAT_SYSTEM_PROMPT}\n\nUser question: {user_message}"
+            fallback_response = ollama.chat(
+                model=model,
+                messages=[{"role": "user", "content": context}],
             )
-            return _chat_without_tools(ollama, model, history, db)
-
-        msg = response["message"]
-        history.append(msg)
-
-        tool_calls = msg.get("tool_calls")
-        if not tool_calls:
-            # No more tool calls — the model produced a final text response
-            return msg.get("content", ""), history
-
-        # Execute each requested tool and feed results back
-        for call in tool_calls:
-            fn = call["function"]
-            tool_name = fn["name"]
-            arguments = fn.get("arguments", {})
-            logger.info("Ollama tool call: %s(%s)", tool_name, arguments)
-
-            result_str = executor.execute(tool_name, arguments)
-            history.append({
-                "role": "tool",
-                "content": result_str,
-            })
-
-    # Safety: if we exhaust rounds, return whatever the last message was
-    return history[-1].get("content", ""), history
+            if hasattr(fallback_response, "message"):
+                return fallback_response.message.content, history
+            return fallback_response["message"]["content"], history
+        except Exception as e2:
+            logger.error("Fallback also failed: %s", e2)
+            return f"Error processing query: {e2}", history
