@@ -54,7 +54,7 @@ class ModDetailFrame(ttk.Frame):
         title_frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
         title_frame.columnconfigure(0, weight=1)
 
-        self._title_var = tk.StringVar(value="— Select a mod —")
+        self._title_var = tk.StringVar(value="— Seleccioná un mod —")
         ttk.Label(
             title_frame,
             textvariable=self._title_var,
@@ -64,7 +64,7 @@ class ModDetailFrame(ttk.Frame):
 
         self._url_btn = ttk.Button(
             title_frame,
-            text="Open on Nexus Mods ↗",
+            text="Abrir en Nexus Mods ↗",
             command=self._open_url,
             state="disabled",
         )
@@ -75,9 +75,9 @@ class ModDetailFrame(ttk.Frame):
         self._notebook = ttk.Notebook(self)
         self._notebook.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
 
-        self._tab_summary = self._make_text_tab("Summary")
-        self._tab_description = self._make_text_tab("Description")
-        self._tab_requirements = self._make_list_tab("Requirements")
+        self._tab_summary = self._make_text_tab("Resumen")
+        self._tab_description = self._make_text_tab("Descripción")
+        self._tab_requirements = self._make_list_tab("Requisitos")
 
     # ------------------------------------------------------------------
     # Tab factories
@@ -139,11 +139,11 @@ class ModDetailFrame(ttk.Frame):
             state="normal" if self._current_url else "disabled"
         )
 
-        self._set_text(self._tab_summary, mod.get("summary", "No summary available."))
+        self._set_text(self._tab_summary, mod.get("summary", "Resumen no disponible."))
         self._set_text(
             self._tab_description,
             clean_bbcode(
-                mod.get("description", "No description cached. Try syncing this mod.")
+                mod.get("description", "Descripción no almacenada. Intentá sincronizar este mod.")
             ),
         )
 
@@ -153,7 +153,7 @@ class ModDetailFrame(ttk.Frame):
 
     def clear(self) -> None:
         """Reset all tabs to their empty state."""
-        self._title_var.set("— Select a mod —")
+        self._title_var.set("— Seleccioná un mod —")
         self._current_url = ""
         self._url_btn.configure(state="disabled")
         for tab in (
@@ -178,15 +178,15 @@ class ModDetailFrame(ttk.Frame):
         tree = self._tab_requirements
         tree.delete(*tree.get_children())
         tree["columns"] = ("name", "type", "url")
-        tree.heading("name", text="Required Mod")
-        tree.heading("type", text="Type")
+        tree.heading("name", text="Mod Requerido")
+        tree.heading("type", text="Tipo")
         tree.heading("url", text="URL")
         tree.column("name", width=200)
         tree.column("type", width=80)
         tree.column("url", width=300)
 
         for req in requirements:
-            req_type = "Patch" if req.get("is_patch") else "Required"
+            req_type = "Parche" if req.get("is_patch") else "Requerido"
             tree.insert(
                 "", tk.END,
                 values=(req["required_name"], req_type, req.get("required_url", "")),
