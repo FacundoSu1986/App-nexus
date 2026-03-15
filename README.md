@@ -1,5 +1,9 @@
 # App-nexus — Skyrim Mod Compatibility Manager
 
+> **Disclaimer:** This project is not affiliated with, 
+> endorsed by, or connected to Nexus Mods in any way. 
+> Nexus Mods is a trademark of Black Tree Gaming Ltd. 
+> This is an independent fan-made tool.
 **App-nexus** is a mod compatibility manager for **Skyrim Special Edition**.
 
 > 💡 *Hobby project created by a Skyrim enthusiast with the help of AIs
