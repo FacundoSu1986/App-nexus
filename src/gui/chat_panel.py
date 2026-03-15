@@ -196,15 +196,18 @@ class ChatPanel(ttk.LabelFrame):
         """Remove the last 'Thinking…' placeholder."""
         self._chat_log.configure(state="normal")
         content = self._chat_log.get("1.0", tk.END)
-        idx = content.rfind("Thinking…")
+        # Search for the placeholder with optional trailing newlines
+        marker = "Thinking…"
+        idx = content.rfind(marker)
         if idx != -1:
-            # Calculate the line/column position
             before = content[:idx]
             line = before.count("\n") + 1
             col = len(before.split("\n")[-1])
             start = f"{line}.{col}"
-            # "Thinking…\n\n" = 12 chars (10 + 2 newlines)
-            end_idx = idx + len("Thinking…\n\n")
+            # Remove the marker plus any trailing newlines (up to 2)
+            end_idx = idx + len(marker)
+            while end_idx < len(content) and content[end_idx] == "\n" and end_idx < idx + len(marker) + 2:
+                end_idx += 1
             after = content[:end_idx]
             end_line = after.count("\n") + 1
             end_col = len(after.split("\n")[-1])

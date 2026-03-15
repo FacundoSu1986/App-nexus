@@ -282,9 +282,8 @@ class ToolExecutor:
                         "patch_name": r["required_name"],
                         "url": r.get("required_url", ""),
                     })
-        # Also search for mods whose name contains "patch" + the query
-        patch_mods = self._db.search_mods_by_name(mod_name)
-        for m in patch_mods:
+        # Also check if any of the already-found mods are patches themselves
+        for m in mods:
             if "patch" in m["name"].lower() and m["name"] not in [
                 p["patch_name"] for p in patches
             ]:

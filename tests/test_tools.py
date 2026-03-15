@@ -62,7 +62,7 @@ class TestToolDefinitions:
 class TestToolExecutor:
     """Test the ToolExecutor against a mock DatabaseManager."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def mock_db(self):
         db = MagicMock()
         db.search_mods_by_name.return_value = [
