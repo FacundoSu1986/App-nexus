@@ -1,128 +1,126 @@
 # App-nexus — Skyrim Mod Compatibility Manager
 
-**App-nexus** es un gestor de compatibilidad de mods para **Skyrim Special Edition**.
-...descripción...
+**App-nexus** is a mod compatibility manager for **Skyrim Special Edition**.
 
-> 💡 *Proyecto hobby creado por un apasionado de Skyrim con ayuda de IAs 
-> (Claude, GitHub Copilot, Gemini, Kimi). ¡Contribuciones bienvenidas!*
-
----
-
-
-**App-nexus** es un gestor de compatibilidad de mods para **Skyrim Special Edition**.
-Lee tu lista de mods de **Mod Organizer 2**, consulta la API de **Nexus Mods** y cruza los
-datos con la **masterlist de LOOT** para detectar dependencias faltantes,
-incompatibilidades y advertencias — todo desde una interfaz gráfica sencilla con tema oscuro.
+> 💡 *Hobby project created by a Skyrim enthusiast with the help of AIs
+> (Claude, GitHub Copilot, Gemini, Kimi). Contributions welcome!*
 
 ---
 
-## Captura de pantalla
+**App-nexus** is a mod compatibility manager for **Skyrim Special Edition**.
+It reads your mod list from **Mod Organizer 2**, queries the **Nexus Mods** API and
+cross-references data with the **LOOT masterlist** to detect missing dependencies,
+incompatibilities and warnings — all from a simple dark-themed GUI.
 
-> ![Captura de pantalla de App-nexus](docs/screenshot.png)
+---
+
+## Screenshot
+
+> ![App-nexus screenshot](docs/screenshot.png)
 >
-> *(Reemplaza esta imagen con una captura real de la aplicación)*
+> *(Replace this image with an actual screenshot of the application)*
 
 ---
 
-## Características
+## Features
 
-- **Lectura automática de Mod Organizer 2**: detecta instancias, perfiles, `modlist.txt`,
-  `plugins.txt` y `meta.ini` de cada mod.
-- **Consulta a la API de Nexus Mods**: obtiene nombre, descripción, requisitos y parches
-  de cada mod directamente desde Nexus.
-- **Análisis de compatibilidad en tres capas**:
-  - Requisitos faltantes (mods necesarios que no están instalados).
-  - Incompatibilidades detectadas por LOOT.
-  - Advertencias y mensajes de LOOT para plugins individuales.
-- **Coincidencia difusa de nombres** (umbral del 82 %) para emparejar mods aunque varíen
-  en sufijo de versión o extensión de plugin (`.esp` / `.esm` / `.esl`).
-- **Caché local SQLite** para no repetir consultas a la API innecesariamente.
-- **Panel de detalle con pestañas**: Resumen, Descripción (con limpieza de BBCode) y
-  Requisitos en tabla.
-- **Informe de compatibilidad**: resumen estadístico con totales de mods, mods habilitados,
-  requisitos faltantes e incompatibilidades.
-- **Botón "Abrir en Nexus Mods"** para ir directo a la página de cada mod.
-- **Tema oscuro** gracias a [sv-ttk](https://github.com/rdbende/Sun-Valley-ttk-theme).
+- **Automatic Mod Organizer 2 reading**: detects instances, profiles, `modlist.txt`,
+  `plugins.txt` and each mod's `meta.ini`.
+- **Nexus Mods API queries**: fetches name, description, requirements and patches
+  for each mod directly from Nexus.
+- **Three-layer compatibility analysis**:
+  - Missing requirements (needed mods that are not installed).
+  - Incompatibilities detected by LOOT.
+  - LOOT warnings and messages for individual plugins.
+- **Fuzzy name matching** (82 % threshold) to pair mods even when they differ in
+  version suffix or plugin extension (`.esp` / `.esm` / `.esl`).
+- **Local SQLite cache** to avoid unnecessary API requests.
+- **Tabbed detail panel**: Summary, Description (with BBCode cleanup) and
+  Requirements table.
+- **Compatibility report**: statistical summary with totals for mods, enabled mods,
+  missing requirements and incompatibilities.
+- **"Open on Nexus Mods" button** to jump straight to each mod's page.
+- **Dark theme** powered by [sv-ttk](https://github.com/rdbende/Sun-Valley-ttk-theme).
 
 ---
 
-## Instalación
+## Installation
 
-### Opción A — Ejecutable para Windows
+### Option A — Windows executable
 
-1. Ve a la sección [Releases](../../releases) de este repositorio.
-2. Descarga el archivo `AppNexus.exe`.
-3. Ejecuta `AppNexus.exe` — no requiere instalar Python ni dependencias.
+1. Go to the [Releases](../../releases) section of this repository.
+2. Download the `AppNexus.exe` file.
+3. Run `AppNexus.exe` — no Python or dependency installation required.
 
-### Opción B — Desde el código fuente
+### Option B — From source
 
-Requiere **Python 3.10+**.
+Requires **Python 3.10+**.
 
 ```bash
-# 1. Clona el repositorio
+# 1. Clone the repository
 git clone https://github.com/FacundoSu1986/App-nexus.git
 cd App-nexus
 
-# 2. Instala las dependencias
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Ejecuta la aplicación
+# 3. Run the application
 python main.py
 ```
 
-> **Compilar el ejecutable (opcional):**
+> **Build the executable (optional):**
 >
 > ```bash
 > pyinstaller build/app_nexus.spec
 > ```
 >
-> El archivo resultante se genera en `dist/AppNexus.exe`.
+> The resulting file is generated at `dist/AppNexus.exe`.
 
 ---
 
-## Uso paso a paso
+## Step-by-step usage
 
-1. **Obtén tu API Key de Nexus Mods** (ver sección siguiente).
-2. **Abre App-nexus** (`AppNexus.exe` o `python main.py`).
-3. **Ingresa tu API Key** en el campo correspondiente de la barra de herramientas.
-4. **Selecciona la carpeta de Mod Organizer 2** con el botón de ruta de MO2.
-5. **Elige el perfil** de MO2 que deseas analizar.
-6. **Presiona "Sincronizar"** para que la aplicación:
-   - Lea la lista de mods y el orden de plugins de MO2.
-   - Consulte la API de Nexus Mods para cada mod.
-   - Descargue y procese la masterlist de LOOT.
-   - Analice compatibilidad y genere el informe.
-7. **Revisa los resultados**:
-   - En el panel izquierdo, navega la lista de mods.
-   - En el panel derecho, explora las pestañas *Resumen*, *Descripción* y *Requisitos*.
-   - En el panel inferior, consulta el informe de compatibilidad con las dependencias
-     faltantes, incompatibilidades y advertencias.
+1. **Get your Nexus Mods API Key** (see the next section).
+2. **Open App-nexus** (`AppNexus.exe` or `python main.py`).
+3. **Enter your API Key** in the corresponding toolbar field.
+4. **Select the Mod Organizer 2 folder** using the MO2 path button.
+5. **Choose the MO2 profile** you want to analyse.
+6. **Press "Sync Nexus"** so that the application:
+   - Reads the mod list and plugin load order from MO2.
+   - Queries the Nexus Mods API for each mod.
+   - Downloads and processes the LOOT masterlist.
+   - Analyses compatibility and generates the report.
+7. **Review the results**:
+   - In the left panel, browse the mod list.
+   - In the right panel, explore the *Summary*, *Description* and *Requirements* tabs.
+   - In the bottom panel, check the compatibility report for missing dependencies,
+     incompatibilities and warnings.
 
 ---
 
-## Cómo obtener tu API Key de Nexus Mods
+## How to get your Nexus Mods API Key
 
-1. Inicia sesión en [nexusmods.com](https://www.nexusmods.com/).
-2. Ve a **Mi cuenta → Pestaña API**:
+1. Log in to [nexusmods.com](https://www.nexusmods.com/).
+2. Go to **My account → API tab**:
    <https://www.nexusmods.com/users/myaccount?tab=api>
-3. En la sección **Personal API Key**, haz clic en **"Request an API Key"**.
-4. Copia la clave generada y pégala en App-nexus.
+3. Under **Personal API Key**, click **"Request an API Key"**.
+4. Copy the generated key and paste it into App-nexus.
 
-> La clave personal es gratuita y permite **100 solicitudes por día**.
-
----
-
-## Créditos
-
-- **Datos de masterlist**: proporcionados por el proyecto
-  [LOOT](https://loot.github.io/) bajo licencia
-  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
-- **Tema visual**: [Sun Valley ttk theme](https://github.com/rdbende/Sun-Valley-ttk-theme)
-  por rdbende.
+> The personal key is free and allows **100 requests per day**.
 
 ---
 
-## Licencia
+## Credits
 
-Este proyecto se distribuye bajo la licencia **MIT**. Consulta el archivo [LICENSE](LICENSE)
-para más detalles.
+- **Masterlist data**: provided by the
+  [LOOT](https://loot.github.io/) project under the
+  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) licence.
+- **Visual theme**: [Sun Valley ttk theme](https://github.com/rdbende/Sun-Valley-ttk-theme)
+  by rdbende.
+
+---
+
+## Licence
+
+This project is distributed under the **MIT** licence. See the [LICENSE](LICENSE)
+file for details.
