@@ -13,6 +13,8 @@ import logging
 import os
 import sys
 
+import sv_ttk
+
 from src.gui.main_window import MainWindow
 
 
@@ -38,6 +40,9 @@ def main() -> None:
     logger = logging.getLogger(__name__)
     logger.info("App-nexus starting.")
     app = MainWindow()
+
+    sv_ttk.set_theme("dark")
+
     app.mainloop()
     logger.info("App-nexus exiting.")
 

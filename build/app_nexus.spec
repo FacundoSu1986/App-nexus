@@ -28,6 +28,7 @@ a = Analysis(
         "src.database.manager",
         "src.analyzer.compatibility",
         "requests",
+        "sv_ttk",
     ],
     hookspath=[],
     hooksconfig={},

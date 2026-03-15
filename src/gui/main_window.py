@@ -21,6 +21,8 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 import webbrowser
 
+import sv_ttk
+
 from src.analyzer.compatibility import CompatibilityAnalyzer
 from src.database.manager import DatabaseManager
 from src.gui.mod_detail_frame import ModDetailFrame
@@ -35,7 +37,7 @@ class MainWindow(tk.Tk):
     """Top-level application window."""
 
     APP_TITLE = "App-nexus — Skyrim Mod Compatibility Manager"
-    GEOMETRY = "1200x750"
+    GEOMETRY = "1280x800"
 
     def __init__(self):
         super().__init__()
@@ -127,6 +129,18 @@ class MainWindow(tk.Tk):
         )
         self._btn_loot.pack(side="left")
 
+        ttk.Separator(toolbar, orient="vertical").pack(
+            side="left", fill="y", padx=8
+        )
+
+        self._theme_btn = ttk.Button(
+            toolbar,
+            text="☀️",
+            width=3,
+            command=self._toggle_theme,
+        )
+        self._theme_btn.pack(side="left")
+
     def _build_main_area(self) -> None:
         paned = ttk.PanedWindow(self, orient="horizontal")
         paned.grid(row=1, column=0, sticky="nsew", padx=6, pady=4)
@@ -206,6 +220,14 @@ class MainWindow(tk.Tk):
     # ------------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------------
+
+    def _toggle_theme(self) -> None:
+        """Switch between dark and light sv-ttk themes."""
+        sv_ttk.toggle_theme()
+        if sv_ttk.get_theme() == "dark":
+            self._theme_btn.config(text="☀️")
+        else:
+            self._theme_btn.config(text="🌙")
 
     def _validate_api_key(self) -> None:
         key = self._api_key_var.get().strip()
