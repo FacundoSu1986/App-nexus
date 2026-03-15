@@ -259,6 +259,7 @@ class MainWindow(tk.Tk):
     def _load_mod_list(self) -> None:
         path = self._modlist_path_var.get().strip()
         if not path:
+            # "Seleccioná un archivo" era el texto en voseo rioplatense
             messagebox.showwarning(
                 "No Path", "Please select a Mod Organizer 2 modlist.txt file."
             )
@@ -314,11 +315,13 @@ class MainWindow(tk.Tk):
     def _sync_mods_threaded(self) -> None:
         """Run the Nexus sync in a background thread so the UI stays responsive."""
         if self._api is None:
+            # "Validá tu clave" era el texto en voseo rioplatense
             messagebox.showwarning(
                 "No API Key", "Please validate your Nexus Mods API key first."
             )
             return
         if self._profile is None:
+            # "Cargá tu modlist" era el texto en voseo rioplatense
             messagebox.showwarning(
                 "No Mod List", "Please load your MO2 modlist.txt first."
             )
