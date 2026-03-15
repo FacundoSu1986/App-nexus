@@ -13,6 +13,7 @@ The numeric game_id used by the v1 API is 1704.
 """
 
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from typing import Optional
@@ -103,9 +104,29 @@ class NexusAPI:
         return data.get("files", [])
 
     def get_mod_requirements(self, mod_id: int) -> list:
-        """GET /games/{game_domain}/mods/{mod_id}/requirements.json"""
+        """GET /games/{game_domain}/mods/{mod_id}/requirements.json
+
+        Returns a list of normalised requirement dicts ready for
+        ``DatabaseManager.upsert_requirements``.
+        """
         url = self._mod_url(f"mods/{mod_id}/requirements.json")
-        return self._get(url)
+        raw_data = self._get(url)
+        normalized = []
+        for req in raw_data:
+            req_mod_id = req.get("mod_id")
+            name = req.get("name", "Unknown")
+            normalized.append({
+                "required_mod_id": req_mod_id,
+                "required_name": name,
+                "required_url": (
+                    f"https://www.nexusmods.com/{self.game_domain}/mods/{req_mod_id}"
+                    if req_mod_id else ""
+                ),
+                "is_patch": bool(
+                    re.search(r"\bpatch\b|\bfix\b|\bcompat", name, re.IGNORECASE)
+                ),
+            })
+        return normalized
 
     def search_mods(self, query: str) -> list:
         """

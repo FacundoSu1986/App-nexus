@@ -67,14 +67,17 @@ class TestGetModRequirements:
     @responses_lib.activate
     def test_get_mod_requirements_success(self, api):
         url = f"{BASE_URL}/games/{SKYRIM_SE_DOMAIN}/mods/3328/requirements.json"
-        requirements = [
-            {"required_name": "SKSE64", "required_url": "", "is_patch": False}
+        raw_requirements = [
+            {"mod_id": 100, "name": "SKSE64"}
         ]
-        responses_lib.add(responses_lib.GET, url, json=requirements, status=200)
+        responses_lib.add(responses_lib.GET, url, json=raw_requirements, status=200)
 
         result = api.get_mod_requirements(3328)
         assert len(result) == 1
+        assert result[0]["required_mod_id"] == 100
         assert result[0]["required_name"] == "SKSE64"
+        assert result[0]["required_url"] == f"https://www.nexusmods.com/{SKYRIM_SE_DOMAIN}/mods/100"
+        assert result[0]["is_patch"] is False
 
     @responses_lib.activate
     def test_get_mod_requirements_empty(self, api):
@@ -83,6 +86,37 @@ class TestGetModRequirements:
 
         result = api.get_mod_requirements(9999)
         assert result == []
+
+    @responses_lib.activate
+    def test_get_mod_requirements_patch_detection(self, api):
+        url = f"{BASE_URL}/games/{SKYRIM_SE_DOMAIN}/mods/5000/requirements.json"
+        raw_requirements = [
+            {"mod_id": 200, "name": "Unofficial Skyrim Patch"},
+            {"mod_id": 201, "name": "Bug Fix Collection"},
+            {"mod_id": 202, "name": "Compatibility Tweaks"},
+            {"mod_id": 203, "name": "Normal Texture Mod"},
+        ]
+        responses_lib.add(responses_lib.GET, url, json=raw_requirements, status=200)
+
+        result = api.get_mod_requirements(5000)
+        assert result[0]["is_patch"] is True   # "Patch"
+        assert result[1]["is_patch"] is True   # "Fix"
+        assert result[2]["is_patch"] is True   # "Compat"
+        assert result[3]["is_patch"] is False  # none
+
+    @responses_lib.activate
+    def test_get_mod_requirements_missing_mod_id(self, api):
+        url = f"{BASE_URL}/games/{SKYRIM_SE_DOMAIN}/mods/6000/requirements.json"
+        raw_requirements = [
+            {"name": "Some Requirement"}
+        ]
+        responses_lib.add(responses_lib.GET, url, json=raw_requirements, status=200)
+
+        result = api.get_mod_requirements(6000)
+        assert len(result) == 1
+        assert result[0]["required_mod_id"] is None
+        assert result[0]["required_name"] == "Some Requirement"
+        assert result[0]["required_url"] == ""
 
 
 class TestValidateKey:
