@@ -11,6 +11,7 @@ Masterlist data: LOOT (loot.github.io) — CC BY-NC-SA 4.0
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING
 
 import requests
@@ -107,6 +108,19 @@ def update_masterlist(db: "DatabaseManager") -> int:
 # Internal helpers
 # ------------------------------------------------------------------
 
+_PLACEHOLDER_RE = re.compile(r"%\d+%")
+
+
+def clean_loot_message(text: str) -> str:
+    """Replace LOOT placeholder variables (``%1%``, ``%2%``, …) with a
+    human-readable fallback and collapse any resulting double spaces.
+    """
+    cleaned = _PLACEHOLDER_RE.sub("[see Nexus page]", text)
+    # Collapse runs of whitespace that may result from replacement.
+    cleaned = re.sub(r"  +", " ", cleaned)
+    return cleaned.strip()
+
+
 def _extract_requirements(plugin: dict) -> list[str]:
     """Return a list of required plugin names from a masterlist plugin entry."""
     raw = plugin.get("req", [])
@@ -143,7 +157,7 @@ def _extract_messages(plugin: dict) -> list[str]:
     msgs: list[str] = []
     for item in raw:
         if isinstance(item, str):
-            msgs.append(item)
+            msgs.append(clean_loot_message(item))
         elif isinstance(item, dict):
             # Messages in the masterlist often use a structure like:
             #   - type: warn
@@ -151,5 +165,5 @@ def _extract_messages(plugin: dict) -> list[str]:
             content = item.get("content", "")
             if content:
                 msg_type = item.get("type", "say")
-                msgs.append(f"[{msg_type}] {content}")
+                msgs.append(clean_loot_message(f"[{msg_type}] {content}"))
     return msgs

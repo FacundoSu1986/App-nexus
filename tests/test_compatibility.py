@@ -151,6 +151,28 @@ class TestLootLookup:
         assert len(report["loot_warnings"]) == 1
         assert report["loot_warnings"][0]["mod_name"] == "USSEP.esp"
 
+    def test_loot_warnings_strip_placeholders(self, db):
+        """LOOT messages stored with %1%/%2% placeholders should be cleaned
+        when surfaced through the analysis report."""
+        import json
+        db.conn.execute(
+            "INSERT INTO loot_entries (name, req, inc, msg) VALUES (?, ?, ?, ?)",
+            ("Foo.esp", "[]", "[]",
+             json.dumps(["[warn] Contains %1% ITM records. Clean with %2%."])),
+        )
+        db.conn.commit()
+        profile = MO2Profile(
+            profile_name="T",
+            mods=[InstalledMod("Foo", enabled=True)],
+            load_order=["Foo.esp"],
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        msg = report["loot_warnings"][0]["message"]
+        assert "%1%" not in msg
+        assert "%2%" not in msg
+        assert "[see Nexus page]" in msg
+
     def test_mod_folder_name_does_not_match_loot_plugin(self, db):
         """Regression: mod folder names (e.g. 'Immersive Armors') must NOT
         match LOOT entries keyed by plugin filename
