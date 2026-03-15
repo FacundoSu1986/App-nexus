@@ -20,6 +20,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 import webbrowser
+from datetime import datetime, timezone
 
 import sv_ttk
 
@@ -128,6 +129,17 @@ class MainWindow(tk.Tk):
             command=self._update_loot_threaded,
         )
         self._btn_loot.pack(side="left")
+
+        ttk.Separator(toolbar, orient="vertical").pack(
+            side="left", fill="y", padx=8
+        )
+
+        self._btn_ai = ttk.Button(
+            toolbar,
+            text="🤖 Analyze with AI",
+            command=self._show_ai_dialog,
+        )
+        self._btn_ai.pack(side="left")
 
         ttk.Separator(toolbar, orient="vertical").pack(
             side="left", fill="y", padx=8
@@ -449,6 +461,266 @@ class MainWindow(tk.Tk):
         analyser = CompatibilityAnalyzer(self._db)
         report = analyser.analyse(self._profile)
         self._display_report(report)
+
+    # ------------------------------------------------------------------
+    # AI Analysis
+    # ------------------------------------------------------------------
+
+    def _show_ai_dialog(self) -> None:
+        """Open a dialog to choose AI provider and run analysis."""
+        if self._profile is None:
+            messagebox.showwarning(
+                "No Mod List", "Please load your MO2 modlist.txt first."
+            )
+            return
+
+        # Get the currently selected mod
+        selection = self._mod_list.selection()
+        if not selection:
+            messagebox.showwarning(
+                "No Mod Selected",
+                "Please select a mod from the list to analyze.",
+            )
+            return
+
+        item = self._mod_list.item(selection[0])
+        mod_name = item["values"][0]
+
+        # Find the nexus_id for the selected mod
+        nexus_id = None
+        if self._profile:
+            for mod in self._profile.mods:
+                if mod.name == mod_name and mod.nexus_id and mod.nexus_id != "0":
+                    nexus_id = mod.nexus_id
+                    break
+
+        if not nexus_id:
+            messagebox.showwarning(
+                "No Nexus ID",
+                f"'{mod_name}' has no Nexus Mods ID in meta.ini.",
+            )
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title("AI Mod Analysis")
+        dialog.geometry("420x260")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ttk.Label(
+            dialog,
+            text=f"Analyze: {mod_name}",
+            font=("Segoe UI", 11, "bold"),
+        ).pack(pady=(12, 6))
+
+        ttk.Label(dialog, text="Select AI provider:").pack(anchor="w", padx=16)
+
+        provider_var = tk.StringVar(value="ollama")
+
+        radio_frame = ttk.Frame(dialog)
+        radio_frame.pack(anchor="w", padx=24, pady=4)
+
+        ttk.Radiobutton(
+            radio_frame,
+            text="Local (Ollama — Free)",
+            variable=provider_var,
+            value="ollama",
+            command=lambda: api_key_entry.config(state="disabled"),
+        ).pack(anchor="w")
+
+        ttk.Radiobutton(
+            radio_frame,
+            text="Claude API (Premium)",
+            variable=provider_var,
+            value="claude",
+            command=lambda: api_key_entry.config(state="normal"),
+        ).pack(anchor="w")
+
+        key_frame = ttk.Frame(dialog)
+        key_frame.pack(fill="x", padx=16, pady=(8, 0))
+        ttk.Label(key_frame, text="Anthropic API Key:").pack(anchor="w")
+        api_key_var = tk.StringVar()
+        api_key_entry = ttk.Entry(
+            key_frame, textvariable=api_key_var, width=48, show="*"
+        )
+        api_key_entry.pack(fill="x")
+        api_key_entry.config(state="disabled")
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=12)
+
+        def on_run():
+            dialog.destroy()
+            provider = provider_var.get()
+            api_key = api_key_var.get().strip()
+            if provider == "claude" and not api_key:
+                messagebox.showwarning(
+                    "No API Key",
+                    "Please enter your Anthropic API key for Claude.",
+                )
+                return
+            self._run_ai_analysis(nexus_id, mod_name, provider, api_key)
+
+        ttk.Button(btn_frame, text="Run Analysis", command=on_run).pack(
+            side="left", padx=4
+        )
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(
+            side="left", padx=4
+        )
+
+    def _run_ai_analysis(
+        self,
+        nexus_id: str,
+        mod_name: str,
+        provider: str,
+        api_key: str,
+    ) -> None:
+        """Launch AI analysis in a background thread."""
+        self._btn_ai.config(state="disabled")
+        self._btn_sync.config(state="disabled")
+
+        thread = threading.Thread(
+            target=self._ai_analysis_worker,
+            args=(nexus_id, mod_name, provider, api_key),
+            daemon=True,
+        )
+        thread.start()
+
+    def _ai_analysis_worker(
+        self,
+        nexus_id: str,
+        mod_name: str,
+        provider: str,
+        api_key: str,
+    ) -> None:
+        """Background worker for AI analysis."""
+        thread_db = DatabaseManager(db_path=self._db.db_path)
+        thread_db.connect()
+        try:
+            # Step 1: Extract page data with Playwright
+            self.after(
+                0, self._set_status,
+                f"Browsing Nexus page for '{mod_name}'…",
+            )
+            try:
+                from src.browser.nexus_browser import extract_mod_page_data
+
+                page_data = extract_mod_page_data(nexus_id, headless=True)
+            except ImportError as exc:
+                self.after(
+                    0, self._set_status,
+                    f"Playwright not available: {exc}",
+                )
+                return
+            except Exception as exc:
+                self.after(
+                    0, self._set_status,
+                    f"Browser error: {exc}",
+                )
+                return
+
+            # Step 2: Analyse with selected AI provider
+            self.after(
+                0, self._set_status,
+                f"Analyzing '{mod_name}' with {provider}…",
+            )
+            try:
+                if provider == "claude":
+                    from src.ai.claude_agent import analyse_mod, ATTRIBUTION
+
+                    result = analyse_mod(page_data, api_key=api_key)
+                else:
+                    from src.ai.local_agent import analyse_mod
+
+                    result = analyse_mod(page_data)
+                    ATTRIBUTION = None
+            except ImportError as exc:
+                self.after(0, self._set_status, f"AI package error: {exc}")
+                return
+            except RuntimeError as exc:
+                self.after(0, self._set_status, str(exc))
+                return
+
+            # Step 3: Save to database
+            analysis_record = {
+                "nexus_id": str(nexus_id),
+                "requirements": result.get("requirements", []),
+                "patches": result.get("patches", []),
+                "known_issues": result.get("known_issues", []),
+                "analyzed_by": provider,
+                "last_analyzed": datetime.now(timezone.utc).isoformat(),
+            }
+            thread_db.upsert_ai_analysis(analysis_record)
+
+            # Step 4: Display results on main thread
+            self.after(
+                0,
+                self._display_ai_report,
+                mod_name,
+                analysis_record,
+                ATTRIBUTION if provider == "claude" else None,
+            )
+
+        except Exception as exc:
+            self.after(0, self._set_status, f"AI analysis error: {exc}")
+            logger.error("AI analysis error: %s", exc)
+        finally:
+            thread_db.close()
+            self.after(0, self._refresh_main_db)
+            self.after(0, self._finish_ai_analysis)
+
+    def _finish_ai_analysis(self) -> None:
+        """Re-enable buttons after AI analysis completes."""
+        self._btn_ai.config(state="normal")
+        self._btn_sync.config(state="normal")
+        self._set_status("AI analysis complete.")
+
+    def _display_ai_report(
+        self,
+        mod_name: str,
+        analysis: dict,
+        attribution: Optional[str] = None,
+    ) -> None:
+        """Format and display an AI analysis report in the report panel."""
+        lines = [
+            "╔══════════════════════════════════════════════════════════╗",
+            f"  AI Analysis: {mod_name}",
+            f"  Provider: {analysis['analyzed_by']}",
+            f"  Analyzed: {analysis['last_analyzed']}",
+            "╚══════════════════════════════════════════════════════════╝",
+            "",
+        ]
+
+        reqs = analysis.get("requirements", [])
+        if reqs:
+            lines.append("── REQUIREMENTS (AI-detected) ──")
+            for r in reqs:
+                lines.append(f"  • {r}")
+            lines.append("")
+
+        patches = analysis.get("patches", [])
+        if patches:
+            lines.append("── PATCHES (AI-detected) ──")
+            for p in patches:
+                lines.append(f"  • {p}")
+            lines.append("")
+
+        issues = analysis.get("known_issues", [])
+        if issues:
+            lines.append("── KNOWN ISSUES (AI-detected) ──")
+            for issue in issues:
+                lines.append(f"  ⚠ {issue}")
+            lines.append("")
+
+        if not reqs and not patches and not issues:
+            lines.append("✔ No additional issues detected by AI analysis.")
+            lines.append("")
+
+        if attribution:
+            lines.append(f"— {attribution}")
+
+        self._set_text(self._report_text, "\n".join(lines))
 
     def _display_report(self, report: dict) -> None:
         stats = report["stats"]
