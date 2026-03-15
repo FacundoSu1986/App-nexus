@@ -129,8 +129,8 @@ class TestExtractModPageData:
         mock_req_tab.click.assert_called_once()
 
     @patch("src.browser.nexus_browser._import_playwright")
-    def test_debug_logging_on_extraction(self, mock_import, caplog):
-        """Verify debug logs are emitted when HTML is extracted."""
+    def test_debug_logging_on_successful_extraction(self, mock_import, caplog):
+        """Verify debug logs are emitted when HTML is successfully extracted."""
         mock_element = MagicMock()
         mock_element.inner_html.return_value = "<p>SKSE64 required</p>"
 
