@@ -66,27 +66,51 @@ class MainWindow(tk.Tk):
         self.rowconfigure(1, weight=3)
         self.rowconfigure(2, weight=1)
 
+        self._configure_styles()
         self._build_toolbar()
         self._build_main_area()
         self._build_bottom_panels()
         self._build_status_bar()
 
+    def _configure_styles(self) -> None:
+        """Apply custom styles for treeview selection and button hover."""
+        style = ttk.Style()
+        is_dark = sv_ttk.get_theme() == "dark"
+
+        # -- Treeview: make active/selected row more visible --
+        sel_bg = "#1a73e8" if is_dark else "#1565C0"
+        sel_fg = "#ffffff"
+        style.map(
+            "Treeview",
+            background=[("selected", sel_bg)],
+            foreground=[("selected", sel_fg)],
+        )
+
+        # -- Toolbar buttons: enhanced hover effect --
+        hover_bg = "#3d3d3d" if is_dark else "#d0d0d0"
+        style.configure("Toolbar.TButton", padding=(10, 4))
+        style.map(
+            "Toolbar.TButton",
+            background=[("active", hover_bg)],
+        )
+
     def _build_toolbar(self) -> None:
-        toolbar = ttk.Frame(self, relief="ridge", padding=6)
+        toolbar = ttk.Frame(self, relief="ridge", padding=(8, 6))
         toolbar.grid(row=0, column=0, sticky="ew")
 
         # API key
-        ttk.Label(toolbar, text="Nexus API Key:").pack(side="left", padx=(0, 4))
+        ttk.Label(toolbar, text="Nexus API Key:").pack(side="left", padx=(4, 4))
         self._api_key_var = tk.StringVar()
         api_entry = ttk.Entry(toolbar, textvariable=self._api_key_var, width=42, show="*")
         api_entry.pack(side="left", padx=(0, 8))
 
         ttk.Button(
-            toolbar, text="Validate Key", command=self._validate_api_key
+            toolbar, text="Validate Key", style="Toolbar.TButton",
+            command=self._validate_api_key,
         ).pack(side="left", padx=(0, 12))
 
         ttk.Separator(toolbar, orient="vertical").pack(
-            side="left", fill="y", padx=8
+            side="left", fill="y", padx=12, pady=2
         )
 
         # MO2 path
@@ -96,61 +120,68 @@ class MainWindow(tk.Tk):
             toolbar, textvariable=self._modlist_path_var, width=32
         ).pack(side="left", padx=(0, 4))
         ttk.Button(
-            toolbar, text="Browse…", command=self._browse_modlist
+            toolbar, text="Browse…", style="Toolbar.TButton",
+            command=self._browse_modlist,
         ).pack(side="left", padx=(0, 8))
         ttk.Button(
-            toolbar, text="Load Mods", command=self._load_mod_list
+            toolbar, text="Load Mods", style="Toolbar.TButton",
+            command=self._load_mod_list,
         ).pack(side="left", padx=(0, 12))
 
         ttk.Separator(toolbar, orient="vertical").pack(
-            side="left", fill="y", padx=8
+            side="left", fill="y", padx=12, pady=2
         )
 
         # Sync + Analyse
         self._btn_sync = ttk.Button(
             toolbar,
             text="🔄 Sync Nexus",
+            style="Toolbar.TButton",
             command=self._sync_mods_threaded,
         )
-        self._btn_sync.pack(side="left", padx=(0, 6))
+        self._btn_sync.pack(side="left", padx=(0, 8))
 
         self._btn_analyse = ttk.Button(
             toolbar,
             text="🔍 Analyse",
+            style="Toolbar.TButton",
             command=self._analyse,
         )
-        self._btn_analyse.pack(side="left")
+        self._btn_analyse.pack(side="left", padx=(0, 12))
 
         ttk.Separator(toolbar, orient="vertical").pack(
-            side="left", fill="y", padx=8
+            side="left", fill="y", padx=12, pady=2
         )
 
         self._btn_loot = ttk.Button(
             toolbar,
             text="📋 Update LOOT",
+            style="Toolbar.TButton",
             command=self._update_loot_threaded,
         )
-        self._btn_loot.pack(side="left")
+        self._btn_loot.pack(side="left", padx=(0, 12))
 
         ttk.Separator(toolbar, orient="vertical").pack(
-            side="left", fill="y", padx=8
+            side="left", fill="y", padx=12, pady=2
         )
 
         self._btn_ai = ttk.Button(
             toolbar,
             text="🤖 Analyze with AI",
+            style="Toolbar.TButton",
             command=self._show_ai_dialog,
         )
-        self._btn_ai.pack(side="left")
+        self._btn_ai.pack(side="left", padx=(0, 12))
 
         ttk.Separator(toolbar, orient="vertical").pack(
-            side="left", fill="y", padx=8
+            side="left", fill="y", padx=12, pady=2
         )
 
         self._theme_btn = ttk.Button(
             toolbar,
             text="☀️",
             width=3,
+            style="Toolbar.TButton",
             command=self._toggle_theme,
         )
         self._theme_btn.pack(side="left")
@@ -247,6 +278,7 @@ class MainWindow(tk.Tk):
     def _toggle_theme(self) -> None:
         """Switch between dark and light sv-ttk themes."""
         sv_ttk.toggle_theme()
+        self._configure_styles()
         if sv_ttk.get_theme() == "dark":
             self._theme_btn.config(text="☀️")
         else:
