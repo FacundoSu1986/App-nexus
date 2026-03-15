@@ -19,7 +19,7 @@ from src.ai.tools import CHAT_SYSTEM_PROMPT, OLLAMA_TOOLS, ToolExecutor
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "llama3"
+DEFAULT_MODEL = "llama3.2"
 
 _SYSTEM_PROMPT = (
     "You are a Skyrim mod compatibility analyst.  Given the raw HTML/text "
@@ -54,7 +54,7 @@ def _import_ollama():
             "  pip install ollama\n\n"
             "You also need the Ollama server running locally.\n"
             "Download it from https://ollama.com and then run:\n"
-            "  ollama pull llama3"
+            "  ollama pull llama3.2"
         )
 
 
@@ -119,7 +119,7 @@ def analyse_mod(
     page_data : dict
         Output of ``nexus_browser.extract_mod_page_data``.
     model : str
-        Ollama model name (default ``llama3``).
+        Ollama model name (default ``llama3.2``).
 
     Returns
     -------
@@ -158,6 +158,53 @@ def analyse_mod(
 _MAX_TOOL_ROUNDS = 5
 
 
+def _build_db_context(db) -> str:
+    """Build a summary of the local mod database for the system prompt."""
+    try:
+        mods = db.get_all_mods() if hasattr(db, "get_all_mods") else []
+        if not mods:
+            return ""
+        lines = ["The user's local mod database contains these mods:"]
+        for m in mods:
+            line = f"- {m.get('name', 'Unknown')}"
+            if m.get("version"):
+                line += f" (v{m['version']})"
+            lines.append(line)
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
+def _chat_without_tools(
+    ollama,
+    model: str,
+    history: list,
+    db,
+) -> tuple[str, list]:
+    """Fallback chat when the model does not support tool calling.
+
+    Embeds database context into the system prompt so the model can still
+    answer questions about the user's mod list.
+    """
+    db_context = _build_db_context(db)
+    system_prompt = CHAT_SYSTEM_PROMPT
+    if db_context:
+        system_prompt = f"{CHAT_SYSTEM_PROMPT}\n\n{db_context}"
+
+    # Rebuild history: replace the system message and keep user/assistant msgs
+    fallback_history: list[dict] = [
+        {"role": "system", "content": system_prompt}
+    ]
+    for msg in history:
+        if msg.get("role") in ("user", "assistant"):
+            fallback_history.append(msg)
+
+    response = ollama.chat(model=model, messages=fallback_history)
+    msg = response["message"]
+    fallback_history.append(msg)
+    return msg.get("content", ""), fallback_history
+
+
 def chat(
     user_message: str,
     db,
@@ -193,11 +240,21 @@ def chat(
     history.append({"role": "user", "content": user_message})
 
     for _ in range(_MAX_TOOL_ROUNDS):
-        response = ollama.chat(
-            model=model,
-            messages=history,
-            tools=OLLAMA_TOOLS,
-        )
+        try:
+            response = ollama.chat(
+                model=model,
+                messages=history,
+                tools=OLLAMA_TOOLS,
+            )
+        except Exception as exc:
+            if "tool" not in str(exc).lower():
+                raise
+            logger.warning(
+                "Model '%s' does not support tools; falling back to "
+                "simple chat.",
+                model,
+            )
+            return _chat_without_tools(ollama, model, history, db)
 
         msg = response["message"]
         history.append(msg)
