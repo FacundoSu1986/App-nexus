@@ -101,7 +101,7 @@ OLLAMA_TOOLS = [
         "function": {
             "name": "get_mod_description",
             "description": (
-                "Get the AI-analysed summary for a mod identified by its "
+                "Get the AI-analyzed summary for a mod identified by its "
                 "Nexus Mods ID.  Returns cached requirements, patches, "
                 "known issues and load order notes extracted by AI."
             ),
@@ -195,7 +195,7 @@ ANTHROPIC_TOOLS = [
     {
         "name": "get_mod_description",
         "description": (
-            "Get the AI-analysed summary for a mod identified by its "
+            "Get the AI-analyzed summary for a mod identified by its "
             "Nexus Mods ID.  Returns cached requirements, patches, "
             "known issues and load order notes extracted by AI."
         ),
