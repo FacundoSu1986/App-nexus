@@ -239,3 +239,74 @@ class TestAnalyseIntegration:
         report = analyser.analyse(profile)
         statuses = compute_mod_statuses(report, profile.mods)
         assert statuses["USSEP"] == "\U0001f7e1 WARN"
+
+
+# ---------------------------------------------------------------------------
+# Populate mod list status column: simulates _populate_mod_list logic
+# ---------------------------------------------------------------------------
+
+class TestPopulateModListStatuses:
+    """Verify that the status column values produced by the
+    _populate_mod_list logic match the expected traffic-light
+    indicators after an analysis report is available."""
+
+    @staticmethod
+    def _status_column(mod, statuses):
+        """Reproduce the status assignment from MainWindow._populate_mod_list."""
+        if not mod.enabled:
+            return "\u2718 OFF"
+        return statuses.get(mod.name, "\u2714 ON")
+
+    def test_traffic_lights_after_analyse(self):
+        """After analysis, every enabled mod should show a traffic light,
+        never the plain '✔ ON' fallback."""
+        profile = _make_profile([
+            ("GoodMod", True),
+            ("WarnMod", True),
+            ("BadMod", True),
+            ("DisabledMod", False),
+        ])
+        report = _empty_report(profile)
+        report["missing_requirements"].extend([
+            {"mod_name": "WarnMod", "required_name": "Patch", "is_patch": True},
+            {"mod_name": "BadMod", "required_name": "Core", "is_patch": False},
+        ])
+        statuses = compute_mod_statuses(report, profile.mods)
+
+        results = {
+            mod.name: self._status_column(mod, statuses)
+            for mod in profile.mods
+        }
+        assert results["GoodMod"] == "\U0001f7e2 OK"
+        assert results["WarnMod"] == "\U0001f7e1 WARN"
+        assert results["BadMod"] == "\U0001f534 ERROR"
+        assert results["DisabledMod"] == "\u2718 OFF"
+        # No mod should show the plain "✔ ON" fallback
+        assert "\u2714 ON" not in results.values()
+
+    def test_no_report_shows_on_off(self):
+        """Before analysis (no report), enabled mods should show '✔ ON'."""
+        profile = _make_profile([("ModA", True), ("ModB", False)])
+        statuses = {}  # no report → empty dict
+
+        results = {
+            mod.name: self._status_column(mod, statuses)
+            for mod in profile.mods
+        }
+        assert results["ModA"] == "\u2714 ON"
+        assert results["ModB"] == "\u2718 OFF"
+
+    def test_all_enabled_mods_covered_by_statuses(self):
+        """compute_mod_statuses must return an entry for every enabled mod
+        so the '✔ ON' fallback in _populate_mod_list is never reached."""
+        profile = _make_profile([
+            ("A", True), ("B", True), ("C", True), ("D", False),
+        ])
+        report = _empty_report(profile)
+        statuses = compute_mod_statuses(report, profile.mods)
+
+        for mod in profile.mods:
+            if mod.enabled:
+                assert mod.name in statuses, (
+                    f"Enabled mod '{mod.name}' missing from statuses dict"
+                )
