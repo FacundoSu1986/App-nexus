@@ -16,6 +16,7 @@ Layout
 import logging
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 import webbrowser
@@ -84,7 +85,7 @@ class MainWindow(tk.Tk):
         )
 
         # MO2 path
-        ttk.Label(toolbar, text="MO2 modlist.txt:").pack(side="left", padx=(0, 4))
+        ttk.Label(toolbar, text="MO2 profile path:").pack(side="left", padx=(0, 4))
         self._modlist_path_var = tk.StringVar()
         ttk.Entry(
             toolbar, textvariable=self._modlist_path_var, width=32
@@ -241,16 +242,24 @@ class MainWindow(tk.Tk):
             )
             return
         try:
-            self._profile = MO2Reader.from_files(modlist_path=path)
+            modlist_path = Path(path)
+            plugins_path = modlist_path.parent / "plugins.txt"
+
+            self._profile = MO2Reader.from_files(
+                modlist_path=str(modlist_path),
+                plugins_path=str(plugins_path) if plugins_path.exists() else None,
+            )
             self._populate_mod_list()
             self._set_status(
                 f"Loaded {len(self._profile.mods)} mods "
-                f"({len(self._profile.enabled_mods)} enabled)."
+                f"({len(self._profile.enabled_mods)} enabled, "
+                f"{len(self._profile.load_order)} plugins)."
             )
             logger.info(
-                "Loaded mod list: %d mods (%d enabled)",
+                "Loaded mod list: %d mods (%d enabled, %d plugins)",
                 len(self._profile.mods),
                 len(self._profile.enabled_mods),
+                len(self._profile.load_order),
             )
         except Exception as exc:
             messagebox.showerror("Load Error", str(exc))
