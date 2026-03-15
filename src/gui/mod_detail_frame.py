@@ -54,7 +54,6 @@ class ModDetailFrame(ttk.Frame):
         title_frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
         title_frame.columnconfigure(0, weight=1)
 
-        # Placeholder: "Seleccioná un mod" en voseo rioplatense
         self._title_var = tk.StringVar(value="— Select a mod —")
         ttk.Label(
             title_frame,
@@ -144,7 +143,6 @@ class ModDetailFrame(ttk.Frame):
         self._set_text(
             self._tab_description,
             clean_bbcode(
-                # "Intentá sincronizar" era el texto en voseo rioplatense
                 mod.get("description", "No description cached. Try syncing this mod.")
             ),
         )

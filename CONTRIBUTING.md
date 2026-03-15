@@ -1,68 +1,68 @@
-# Guía de Contribución
+# Contributing Guide
 
-¡Gracias por tu interés en contribuir a **App-nexus**! Esta guía te ayudará a comenzar.
+Thank you for your interest in contributing to **App-nexus**! This guide will help you get started.
 
-## Cómo Contribuir
+## How to Contribute
 
-1. Hacé un fork del repositorio.
-2. Creá una rama para tu cambio: `git checkout -b mi-cambio`.
-3. Realizá tus cambios y asegurate de que los tests pasen.
-4. Hacé commit con un mensaje descriptivo: `git commit -m "Descripción del cambio"`.
-5. Pusheá tu rama: `git push origin mi-cambio`.
-6. Abrí un Pull Request describiendo tus cambios.
+1. Fork the repository.
+2. Create a branch for your change: `git checkout -b my-change`.
+3. Make your changes and ensure the tests pass.
+4. Commit with a descriptive message: `git commit -m "Description of change"`.
+5. Push your branch: `git push origin my-change`.
+6. Open a Pull Request describing your changes.
 
-## Configuración del Entorno
+## Environment Setup
 
 ```bash
-# Clonar tu fork
-git clone https://github.com/<tu-usuario>/App-nexus.git
+# Clone your fork
+git clone https://github.com/<your-username>/App-nexus.git
 cd App-nexus
 
-# Instalar dependencias
+# Install dependencies
 pip install -r requirements.txt
 
-# Ejecutar tests
+# Run tests
 python -m pytest tests/ -v
 ```
 
-## Estilo de Código
+## Code Style
 
-- Seguimos las convenciones de **PEP 8** para Python.
-- Usá type hints cuando sea posible.
-- Los docstrings deben seguir el formato NumPy/Google.
-- La interfaz de usuario debe estar en **español**.
+- We follow **PEP 8** conventions for Python.
+- Use type hints whenever possible.
+- Docstrings should follow the NumPy/Google format.
+- The user interface should be in **English**.
 
-## Idioma de la Interfaz
+## Interface Language
 
-Todas las cadenas de texto visibles para el usuario deben estar en **español**. Esto incluye:
+All user-visible text strings should be in **English**. This includes:
 
-- Etiquetas de botones y campos
-- Mensajes de diálogos (advertencias, errores, información)
-- Mensajes de la barra de estado
-- Encabezados de columnas y pestañas
-- Texto del reporte de análisis
+- Button and field labels
+- Dialog messages (warnings, errors, information)
+- Status bar messages
+- Column headings and tabs
+- Analysis report text
 
-Los comentarios en el código y los mensajes de log pueden permanecer en inglés.
+Code comments and log messages may remain in either English or Spanish.
 
 ## Tests
 
-- Los tests se escriben con **pytest**.
-- Ubicá los tests en la carpeta `tests/` con el prefijo `test_`.
-- Ejecutá los tests antes de enviar tu PR:
+- Tests are written with **pytest**.
+- Place tests in the `tests/` folder with the `test_` prefix.
+- Run tests before submitting your PR:
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-## Reportar Errores
+## Reporting Bugs
 
-Si encontrás un error, abrí un issue incluyendo:
+If you find a bug, open an issue including:
 
-- Descripción del problema
-- Pasos para reproducirlo
-- Comportamiento esperado vs. actual
-- Versión de Python y sistema operativo
+- Description of the problem
+- Steps to reproduce it
+- Expected vs. actual behaviour
+- Python version and operating system
 
-## Sugerencias y Mejoras
+## Suggestions and Improvements
 
-Las sugerencias son bienvenidas. Abrí un issue con la etiqueta `mejora` para proponer nuevas funcionalidades.
+Suggestions are welcome. Open an issue with the `enhancement` label to propose new features.

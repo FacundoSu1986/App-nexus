@@ -1,4 +1,4 @@
-"""Tests that Spanish UI strings have been reverted to English in the GUI modules."""
+"""Tests for English translation strings in the GUI modules."""
 
 import ast
 import pytest
@@ -7,8 +7,8 @@ from src.gui.main_window import MainWindow
 from src.gui.mod_detail_frame import clean_bbcode
 
 
-class TestMainWindowSpanishStrings:
-    """Verify that MainWindow no longer contains Spanish UI strings."""
+class TestMainWindowEnglishStrings:
+    """Verify that MainWindow contains the expected English UI strings."""
 
     def _get_source(self):
         """Return the source code of main_window.py as a string."""
@@ -18,6 +18,63 @@ class TestMainWindowSpanishStrings:
 
     def test_app_title_in_english(self):
         assert MainWindow.APP_TITLE == "App-nexus — Skyrim Mod Compatibility Manager"
+
+    @pytest.mark.parametrize(
+        "english_string",
+        [
+            "Validate Key",
+            "MO2 Profile:",
+            "Browse…",
+            "Load Mods",
+            "Sync Nexus",
+            "Analyse",
+            "Update LOOT",
+            "Installed Mods",
+            "Mod Name",
+            "Status",
+            "Analysis Report",
+            "Ready.",
+            "Sync complete.",
+            "No issues detected in the cached database.",
+            "Nexus API Key:",
+            "No API Key",
+            "Validating API key",
+            "API Key Valid",
+            "Authenticated as:",
+            "API Key Error",
+            "API key validation failed.",
+            "Select MO2 modlist.txt",
+            "Text files",
+            "No Path",
+            "Load Error",
+            "No Mod List",
+            "Syncing mod",
+            "Skipping",
+            "already cached",
+            "Rate limit reached",
+            "API error for",
+            "Error syncing",
+            "Downloading LOOT masterlist",
+            "LOOT masterlist updated",
+            "LOOT update failed",
+            "MISSING REQUIREMENTS",
+            "[PATCH]",
+            "[REQUIRED]",
+            "required by",
+            "LOOT INCOMPATIBILITIES",
+            "conflicts with",
+            "LOOT WARNINGS",
+            "Mods analysed",
+            "Missing mods",
+            "LOOT conflicts",
+            "LOOT warnings",
+        ],
+    )
+    def test_english_string_present_in_source(self, english_string):
+        source = self._get_source()
+        assert english_string in source, (
+            f"Expected English string '{english_string}' not found in main_window.py"
+        )
 
     @pytest.mark.parametrize(
         "spanish_string",
@@ -72,81 +129,18 @@ class TestMainWindowSpanishStrings:
     def test_spanish_string_absent_from_source(self, spanish_string):
         source = self._get_source()
         assert spanish_string not in source, (
-            f"Spanish string '{spanish_string}' should have been reverted to English "
+            f"Spanish string '{spanish_string}' should have been translated "
             f"in main_window.py"
         )
 
-    @pytest.mark.parametrize(
-        "english_string",
-        [
-            "Validate Key",
-            "Browse…",
-            "Load Mods",
-            "Sync Nexus",
-            "Update LOOT",
-            "Installed Mods",
-            "Mod Name",
-            "Analysis Report",
-            "Ready.",
-            "No issues detected in the database.",
-            "Nexus API Key:",
-            "No API Key",
-            "Validating API key",
-            "Valid API Key",
-            "Authenticated as:",
-            "API Key Error",
-            "API key validation failed.",
-            "Select MO2 modlist.txt",
-            "Text files",
-            "No Path",
-            "Load Error",
-            "No Mod List",
-            "MISSING REQUIREMENTS",
-            "[PATCH]",
-            "[REQUIRED]",
-            "required by",
-            "LOOT INCOMPATIBILITIES",
-            "conflicts with",
-            "LOOT WARNINGS",
-        ],
-    )
-    def test_english_string_present_in_source(self, english_string):
-        source = self._get_source()
-        assert english_string in source, (
-            f"English string '{english_string}' not found in main_window.py"
-        )
 
-
-class TestModDetailFrameSpanishStrings:
-    """Verify that ModDetailFrame no longer contains Spanish UI strings."""
+class TestModDetailFrameEnglishStrings:
+    """Verify that ModDetailFrame contains the expected English UI strings."""
 
     def _get_source(self):
         import inspect
         import src.gui.mod_detail_frame as mod
         return inspect.getsource(mod)
-
-    @pytest.mark.parametrize(
-        "spanish_string",
-        [
-            "Seleccioná un mod",
-            "Abrir en Nexus Mods",
-            "Resumen",
-            "Descripción",
-            "Requisitos",
-            "Resumen no disponible.",
-            "Descripción no almacenada. Intentá sincronizar este mod.",
-            "Mod Requerido",
-            "Tipo",
-            "Parche",
-            "Requerido",
-        ],
-    )
-    def test_spanish_string_absent_from_source(self, spanish_string):
-        source = self._get_source()
-        assert spanish_string not in source, (
-            f"Spanish string '{spanish_string}' should have been reverted to English "
-            f"in mod_detail_frame.py"
-        )
 
     @pytest.mark.parametrize(
         "english_string",
@@ -167,5 +161,28 @@ class TestModDetailFrameSpanishStrings:
     def test_english_string_present_in_source(self, english_string):
         source = self._get_source()
         assert english_string in source, (
-            f"English string '{english_string}' not found in mod_detail_frame.py"
+            f"Expected English string '{english_string}' not found in mod_detail_frame.py"
+        )
+
+    @pytest.mark.parametrize(
+        "spanish_string",
+        [
+            "Seleccioná un mod",
+            "Abrir en Nexus Mods",
+            "Resumen",
+            "Descripción",
+            "Requisitos",
+            "Resumen no disponible.",
+            "Descripción no almacenada. Intentá sincronizar este mod.",
+            "Mod Requerido",
+            "Tipo",
+            "Parche",
+            "Requerido",
+        ],
+    )
+    def test_spanish_string_absent_from_source(self, spanish_string):
+        source = self._get_source()
+        assert spanish_string not in source, (
+            f"Spanish string '{spanish_string}' should have been translated "
+            f"in mod_detail_frame.py"
         )

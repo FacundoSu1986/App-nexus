@@ -232,7 +232,6 @@ class MainWindow(tk.Tk):
     def _validate_api_key(self) -> None:
         key = self._api_key_var.get().strip()
         if not key:
-            # "Ingresá tu clave" era el texto en voseo rioplatense
             messagebox.showwarning("No API Key", "Please enter your Nexus Mods API key.")
             return
         self._set_status("Validating API key…")
@@ -240,9 +239,9 @@ class MainWindow(tk.Tk):
             api = NexusAPI(api_key=key)
             info = api.validate_api_key()
             name = info.get("name", "unknown user")
-            messagebox.showinfo("Valid API Key", f"Authenticated as: {name}")
+            messagebox.showinfo("API Key Valid", f"Authenticated as: {name}")
             self._api = api
-            self._set_status(f"Valid API key — logged in as {name}.")
+            self._set_status(f"API key valid — logged in as {name}.")
             logger.info("API key validated for user: %s", name)
         except Exception as exc:
             messagebox.showerror("API Key Error", str(exc))
@@ -311,7 +310,7 @@ class MainWindow(tk.Tk):
             self._detail.show_mod(results[0], db=self._db)
         else:
             self._detail.clear()
-            self._set_status(f"'{mod_name}' not in database. Sync to fetch data.")
+            self._set_status(f"'{mod_name}' not in database. Sync to fetch its data.")
 
     def _sync_mods_threaded(self) -> None:
         """Run the Nexus sync in a background thread so the UI stays responsive."""
@@ -493,7 +492,7 @@ class MainWindow(tk.Tk):
             and not report.get("loot_incompatibilities")
             and not report.get("loot_warnings")
         ):
-            lines.append("✔ No issues detected in the database.")
+            lines.append("✔ No issues detected in the cached database.")
 
         self._set_text(self._report_text, "\n".join(lines))
 
