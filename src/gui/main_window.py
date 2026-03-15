@@ -625,16 +625,18 @@ class MainWindow(tk.Tk):
                 0, self._set_status,
                 f"Analyzing '{mod_name}' with {provider}…",
             )
+            attribution = None
             try:
                 if provider == "claude":
-                    from src.ai.claude_agent import analyse_mod, ATTRIBUTION
+                    from src.ai.claude_agent import analyse_mod as claude_analyse
+                    from src.ai.claude_agent import ATTRIBUTION
 
-                    result = analyse_mod(page_data, api_key=api_key)
+                    result = claude_analyse(page_data, api_key=api_key)
+                    attribution = ATTRIBUTION
                 else:
-                    from src.ai.local_agent import analyse_mod
+                    from src.ai.local_agent import analyse_mod as local_analyse
 
-                    result = analyse_mod(page_data)
-                    ATTRIBUTION = None
+                    result = local_analyse(page_data)
             except ImportError as exc:
                 self.after(0, self._set_status, f"AI package error: {exc}")
                 return
@@ -659,7 +661,7 @@ class MainWindow(tk.Tk):
                 self._display_ai_report,
                 mod_name,
                 analysis_record,
-                ATTRIBUTION if provider == "claude" else None,
+                attribution,
             )
 
         except Exception as exc:
