@@ -314,10 +314,21 @@ class MainWindow(tk.Tk):
         for mod in self._profile.mods:
             if not mod.enabled:
                 status = "✘ OFF"
+                tag = "disabled"
             else:
                 status = statuses.get(mod.name, "✔ ON")
-            tag = "enabled" if mod.enabled else "disabled"
+                if status == "✔ OK":
+                    tag = "status_ok"
+                elif status == "⚠ WARN":
+                    tag = "status_warn"
+                elif status == "✘ ERROR":
+                    tag = "status_error"
+                else:
+                    tag = "enabled"
             self._mod_list.insert("", tk.END, values=(mod.name, status), tags=(tag,))
+        self._mod_list.tag_configure("status_ok", foreground="#4CAF50")
+        self._mod_list.tag_configure("status_warn", foreground="#FFA500")
+        self._mod_list.tag_configure("status_error", foreground="#F44336")
         self._mod_list.tag_configure("disabled", foreground="grey")
 
     def _on_mod_select(self, _event) -> None:
