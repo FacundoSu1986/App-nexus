@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 class MainWindow(tk.Tk):
     """Top-level application window."""
 
-    APP_TITLE = "App-nexus — Gestor de Compatibilidad de Mods de Skyrim"
+    APP_TITLE = "App-nexus — Skyrim Mod Compatibility Manager"
     GEOMETRY = "1280x800"
 
     def __init__(self):
@@ -73,13 +73,13 @@ class MainWindow(tk.Tk):
         toolbar.grid(row=0, column=0, sticky="ew")
 
         # API key
-        ttk.Label(toolbar, text="Clave API Nexus:").pack(side="left", padx=(0, 4))
+        ttk.Label(toolbar, text="Nexus API Key:").pack(side="left", padx=(0, 4))
         self._api_key_var = tk.StringVar()
         api_entry = ttk.Entry(toolbar, textvariable=self._api_key_var, width=42, show="*")
         api_entry.pack(side="left", padx=(0, 8))
 
         ttk.Button(
-            toolbar, text="Validar Clave", command=self._validate_api_key
+            toolbar, text="Validate Key", command=self._validate_api_key
         ).pack(side="left", padx=(0, 12))
 
         ttk.Separator(toolbar, orient="vertical").pack(
@@ -87,16 +87,16 @@ class MainWindow(tk.Tk):
         )
 
         # MO2 path
-        ttk.Label(toolbar, text="Perfil MO2:").pack(side="left", padx=(0, 4))
+        ttk.Label(toolbar, text="MO2 Profile:").pack(side="left", padx=(0, 4))
         self._modlist_path_var = tk.StringVar()
         ttk.Entry(
             toolbar, textvariable=self._modlist_path_var, width=32
         ).pack(side="left", padx=(0, 4))
         ttk.Button(
-            toolbar, text="Explorar…", command=self._browse_modlist
+            toolbar, text="Browse…", command=self._browse_modlist
         ).pack(side="left", padx=(0, 8))
         ttk.Button(
-            toolbar, text="Cargar Mods", command=self._load_mod_list
+            toolbar, text="Load Mods", command=self._load_mod_list
         ).pack(side="left", padx=(0, 12))
 
         ttk.Separator(toolbar, orient="vertical").pack(
@@ -106,14 +106,14 @@ class MainWindow(tk.Tk):
         # Sync + Analyse
         self._btn_sync = ttk.Button(
             toolbar,
-            text="🔄 Sincronizar Nexus",
+            text="🔄 Sync Nexus",
             command=self._sync_mods_threaded,
         )
         self._btn_sync.pack(side="left", padx=(0, 6))
 
         self._btn_analyse = ttk.Button(
             toolbar,
-            text="🔍 Analizar",
+            text="🔍 Analyse",
             command=self._analyse,
         )
         self._btn_analyse.pack(side="left")
@@ -124,7 +124,7 @@ class MainWindow(tk.Tk):
 
         self._btn_loot = ttk.Button(
             toolbar,
-            text="📋 Actualizar LOOT",
+            text="📋 Update LOOT",
             command=self._update_loot_threaded,
         )
         self._btn_loot.pack(side="left")
@@ -151,7 +151,7 @@ class MainWindow(tk.Tk):
         left_frame.rowconfigure(1, weight=1)
         paned.add(left_frame, weight=1)
 
-        ttk.Label(left_frame, text="Mods Instalados", font=("Segoe UI", 10, "bold")).grid(
+        ttk.Label(left_frame, text="Installed Mods", font=("Segoe UI", 10, "bold")).grid(
             row=0, column=0, sticky="w"
         )
 
@@ -161,8 +161,8 @@ class MainWindow(tk.Tk):
             show="headings",
             selectmode="browse",
         )
-        self._mod_list.heading("name", text="Nombre del Mod")
-        self._mod_list.heading("status", text="Estado")
+        self._mod_list.heading("name", text="Mod Name")
+        self._mod_list.heading("status", text="Status")
         self._mod_list.column("name", width=220)
         self._mod_list.column("status", width=70)
         self._mod_list.grid(row=1, column=0, sticky="nsew")
@@ -177,7 +177,7 @@ class MainWindow(tk.Tk):
         paned.add(self._detail, weight=3)
 
     def _build_report_panel(self) -> None:
-        report_frame = ttk.LabelFrame(self, text="Reporte de Análisis", padding=6)
+        report_frame = ttk.LabelFrame(self, text="Analysis Report", padding=6)
         report_frame.grid(row=2, column=0, sticky="nsew", padx=6, pady=(0, 4))
         report_frame.columnconfigure(0, weight=1)
         report_frame.rowconfigure(0, weight=1)
@@ -200,7 +200,7 @@ class MainWindow(tk.Tk):
         status_frame.grid(row=3, column=0, sticky="ew")
         status_frame.columnconfigure(0, weight=1)
 
-        self._status_var = tk.StringVar(value="Listo.")
+        self._status_var = tk.StringVar(value="Ready.")
         ttk.Label(
             status_frame,
             textvariable=self._status_var,
@@ -232,26 +232,26 @@ class MainWindow(tk.Tk):
     def _validate_api_key(self) -> None:
         key = self._api_key_var.get().strip()
         if not key:
-            messagebox.showwarning("Sin Clave API", "Por favor, ingresá tu clave API de Nexus Mods.")
+            messagebox.showwarning("No API Key", "Please enter your Nexus Mods API key.")
             return
-        self._set_status("Validando clave API…")
+        self._set_status("Validating API key…")
         try:
             api = NexusAPI(api_key=key)
             info = api.validate_api_key()
             name = info.get("name", "unknown user")
-            messagebox.showinfo("Clave API Válida", f"Autenticado como: {name}")
+            messagebox.showinfo("API Key Valid", f"Authenticated as: {name}")
             self._api = api
-            self._set_status(f"Clave API válida — sesión iniciada como {name}.")
+            self._set_status(f"API key valid — logged in as {name}.")
             logger.info("API key validated for user: %s", name)
         except Exception as exc:
-            messagebox.showerror("Error de Clave API", str(exc))
-            self._set_status("La validación de clave API falló.")
+            messagebox.showerror("API Key Error", str(exc))
+            self._set_status("API key validation failed.")
             logger.error("API key validation failed: %s", exc)
 
     def _browse_modlist(self) -> None:
         path = filedialog.askopenfilename(
-            title="Seleccionar modlist.txt de MO2",
-            filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")],
+            title="Select MO2 modlist.txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
         )
         if path:
             self._modlist_path_var.set(path)
@@ -260,7 +260,7 @@ class MainWindow(tk.Tk):
         path = self._modlist_path_var.get().strip()
         if not path:
             messagebox.showwarning(
-                "Sin Ruta", "Por favor, seleccioná un archivo modlist.txt de Mod Organizer 2."
+                "No Path", "Please select a Mod Organizer 2 modlist.txt file."
             )
             return
         try:
@@ -273,8 +273,8 @@ class MainWindow(tk.Tk):
             )
             self._populate_mod_list()
             self._set_status(
-                f"Cargados {len(self._profile.mods)} mods "
-                f"({len(self._profile.enabled_mods)} habilitados, "
+                f"Loaded {len(self._profile.mods)} mods "
+                f"({len(self._profile.enabled_mods)} enabled, "
                 f"{len(self._profile.load_order)} plugins)."
             )
             logger.info(
@@ -284,7 +284,7 @@ class MainWindow(tk.Tk):
                 len(self._profile.load_order),
             )
         except Exception as exc:
-            messagebox.showerror("Error de Carga", str(exc))
+            messagebox.showerror("Load Error", str(exc))
             logger.error("Failed to load mod list: %s", exc)
 
     def _populate_mod_list(self) -> None:
@@ -309,18 +309,18 @@ class MainWindow(tk.Tk):
             self._detail.show_mod(results[0], db=self._db)
         else:
             self._detail.clear()
-            self._set_status(f"'{mod_name}' no está en la base de datos. Sincronizá para obtener los datos.")
+            self._set_status(f"'{mod_name}' not in database. Sync to fetch its data.")
 
     def _sync_mods_threaded(self) -> None:
         """Run the Nexus sync in a background thread so the UI stays responsive."""
         if self._api is None:
             messagebox.showwarning(
-                "Sin Clave API", "Por favor, validá tu clave API de Nexus Mods primero."
+                "No API Key", "Please validate your Nexus Mods API key first."
             )
             return
         if self._profile is None:
             messagebox.showwarning(
-                "Sin Lista de Mods", "Por favor, cargá tu modlist.txt de MO2 primero."
+                "No Mod List", "Please load your MO2 modlist.txt first."
             )
             return
 
@@ -348,13 +348,13 @@ class MainWindow(tk.Tk):
             total = len(mods)
 
             for idx, mod in enumerate(mods, start=1):
-                self.after(0, self._set_status, f"Sincronizando mod {idx}/{total}: {mod.name}…")
+                self.after(0, self._set_status, f"Syncing mod {idx}/{total}: {mod.name}…")
 
                 # Skip mods without a valid nexus_id
                 if not mod.nexus_id or mod.nexus_id == "0":
                     self.after(
                         0, self._set_status,
-                        f"Omitiendo '{mod.name}' (sin ID de Nexus en meta.ini).",
+                        f"Skipping '{mod.name}' (no Nexus ID in meta.ini).",
                     )
                     continue
 
@@ -364,7 +364,7 @@ class MainWindow(tk.Tk):
                 if thread_db.get_mod(nexus_id):
                     self.after(
                         0, self._set_status,
-                        f"Omitiendo '{mod.name}' (ya en caché).",
+                        f"Skipping '{mod.name}' (already cached).",
                     )
                     continue
 
@@ -380,14 +380,14 @@ class MainWindow(tk.Tk):
                     self.after(
                         0,
                         self._set_status,
-                        "Límite de consultas alcanzado. Deteniendo sincronización.",
+                        "Rate limit reached. Stopping sync.",
                     )
                     break
                 except NexusAPIError as exc:
-                    self.after(0, self._set_status, f"Error de API para '{mod.name}': {exc}")
+                    self.after(0, self._set_status, f"API error for '{mod.name}': {exc}")
                     logger.error("API error for '%s': %s", mod.name, exc)
                 except Exception as exc:
-                    self.after(0, self._set_status, f"Error sincronizando '{mod.name}': {exc}")
+                    self.after(0, self._set_status, f"Error syncing '{mod.name}': {exc}")
                     logger.error("Error syncing '%s': %s", mod.name, exc)
         finally:
             thread_db.close()
@@ -399,7 +399,7 @@ class MainWindow(tk.Tk):
 
     def _finish_sync(self) -> None:
         """Helper to cleanly finish the sync process on the main thread."""
-        self._set_status("Sincronización completa.")
+        self._set_status("Sync complete.")
         self._populate_mod_list()
         self._btn_sync.config(state="normal")
         self._btn_analyse.config(state="normal")
@@ -419,12 +419,12 @@ class MainWindow(tk.Tk):
         thread_db = DatabaseManager(db_path=self._db.db_path)
         thread_db.connect()
         try:
-            self.after(0, self._set_status, "Descargando masterlist de LOOT…")
+            self.after(0, self._set_status, "Downloading LOOT masterlist…")
             count = update_masterlist(thread_db)
-            self.after(0, self._set_status, f"Masterlist de LOOT actualizada: {count} entradas de plugins.")
+            self.after(0, self._set_status, f"LOOT masterlist updated: {count} plugin entries.")
             logger.info("LOOT masterlist updated: %d entries.", count)
         except Exception as exc:
-            self.after(0, self._set_status, f"Actualización de LOOT falló: {exc}")
+            self.after(0, self._set_status, f"LOOT update failed: {exc}")
             logger.error("LOOT update failed: %s", exc)
         finally:
             thread_db.close()
@@ -440,7 +440,7 @@ class MainWindow(tk.Tk):
     def _analyse(self) -> None:
         if self._profile is None:
             messagebox.showwarning(
-                "Sin Lista de Mods", "Por favor, cargá tu modlist.txt de MO2 primero."
+                "No Mod List", "Please load your MO2 modlist.txt first."
             )
             return
         analyser = CompatibilityAnalyzer(self._db)
@@ -451,35 +451,35 @@ class MainWindow(tk.Tk):
         stats = report["stats"]
         lines = [
             "╔══════════════════════════════════════════════════════════╗",
-            f"  Mods analizados : {stats['enabled_mods']} habilitados / {stats['total_mods']} total",
-            f"  Mods faltantes  : {stats['missing_count']}  (parches: {stats['missing_patches']})",
-            f"  Conflictos LOOT : {stats.get('loot_incompatible', 0)}",
-            f"  Advertencias LOOT: {stats.get('loot_warnings', 0)}",
+            f"  Mods analysed   : {stats['enabled_mods']} enabled / {stats['total_mods']} total",
+            f"  Missing mods    : {stats['missing_count']}  (patches: {stats['missing_patches']})",
+            f"  LOOT conflicts  : {stats.get('loot_incompatible', 0)}",
+            f"  LOOT warnings   : {stats.get('loot_warnings', 0)}",
             "╚══════════════════════════════════════════════════════════╝",
             "",
         ]
 
         if report["missing_requirements"]:
-            lines.append("── REQUISITOS FALTANTES ──")
+            lines.append("── MISSING REQUIREMENTS ──")
             for m in report["missing_requirements"]:
-                tag = "[PARCHE]" if m["is_patch"] else "[REQUERIDO]"
+                tag = "[PATCH]" if m["is_patch"] else "[REQUIRED]"
                 lines.append(
-                    f"  {tag} '{m['required_name']}' requerido por '{m['mod_name']}'"
+                    f"  {tag} '{m['required_name']}' required by '{m['mod_name']}'"
                 )
                 if m.get("required_url"):
                     lines.append(f"    → {m['required_url']}")
             lines.append("")
 
         if report.get("loot_incompatibilities"):
-            lines.append("── INCOMPATIBILIDADES LOOT ──")
+            lines.append("── LOOT INCOMPATIBILITIES ──")
             for inc in report["loot_incompatibilities"]:
                 lines.append(
-                    f"  [INCOMPATIBLE] '{inc['mod_name']}' en conflicto con '{inc['incompatible_with']}'"
+                    f"  [INCOMPATIBLE] '{inc['mod_name']}' conflicts with '{inc['incompatible_with']}'"
                 )
             lines.append("")
 
         if report.get("loot_warnings"):
-            lines.append("── ADVERTENCIAS LOOT ──")
+            lines.append("── LOOT WARNINGS ──")
             for w in report["loot_warnings"]:
                 lines.append(f"  ⚠ {w['mod_name']}: {w['message']}")
             lines.append("")
@@ -489,7 +489,7 @@ class MainWindow(tk.Tk):
             and not report.get("loot_incompatibilities")
             and not report.get("loot_warnings")
         ):
-            lines.append("✔ No se detectaron problemas en la base de datos.")
+            lines.append("✔ No issues detected in the cached database.")
 
         self._set_text(self._report_text, "\n".join(lines))
 
