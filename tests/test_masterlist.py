@@ -189,7 +189,7 @@ class TestCleanLootMessage:
 
     def test_adjacent_placeholders_no_double_space(self):
         result = clean_loot_message("%1% %2%")
-        assert "  " not in result
+        assert result == "[see Nexus page] [see Nexus page]"
 
     def test_extract_messages_cleans_placeholders(self):
         """Verify _extract_messages applies cleaning."""
