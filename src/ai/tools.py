@@ -96,6 +96,27 @@ OLLAMA_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_mod_description",
+            "description": (
+                "Get the AI-analysed summary for a mod identified by its "
+                "Nexus Mods ID.  Returns cached requirements, patches, "
+                "known issues and load order notes extracted by AI."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nexus_id": {
+                        "type": "string",
+                        "description": "The Nexus Mods numeric ID of the mod.",
+                    }
+                },
+                "required": ["nexus_id"],
+            },
+        },
+    },
 ]
 
 # ------------------------------------------------------------------
@@ -171,6 +192,24 @@ ANTHROPIC_TOOLS = [
             "required": ["mod_name"],
         },
     },
+    {
+        "name": "get_mod_description",
+        "description": (
+            "Get the AI-analysed summary for a mod identified by its "
+            "Nexus Mods ID.  Returns cached requirements, patches, "
+            "known issues and load order notes extracted by AI."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nexus_id": {
+                    "type": "string",
+                    "description": "The Nexus Mods numeric ID of the mod.",
+                }
+            },
+            "required": ["nexus_id"],
+        },
+    },
 ]
 
 # ------------------------------------------------------------------
@@ -210,6 +249,7 @@ class ToolExecutor:
             "get_mod_requirements": self._get_mod_requirements,
             "get_loot_warnings": self._get_loot_warnings,
             "find_patches": self._find_patches,
+            "get_mod_description": self._get_mod_description,
         }.get(tool_name)
 
         if handler is None:
@@ -293,3 +333,21 @@ class ToolExecutor:
                     "url": m.get("mod_url", ""),
                 })
         return patches
+
+    def _get_mod_description(self, args: dict) -> dict:
+        nexus_id = args.get("nexus_id", "")
+        analysis = self._db.get_ai_analysis(str(nexus_id))
+        if analysis is None:
+            return {
+                "nexus_id": nexus_id,
+                "note": "No AI analysis cached for this mod.",
+            }
+        return {
+            "nexus_id": analysis["nexus_id"],
+            "requirements": analysis.get("requirements", []),
+            "patches": analysis.get("patches", []),
+            "known_issues": analysis.get("known_issues", []),
+            "load_order": analysis.get("load_order", []),
+            "analyzed_by": analysis.get("analyzed_by", ""),
+            "last_analyzed": analysis.get("last_analyzed", ""),
+        }

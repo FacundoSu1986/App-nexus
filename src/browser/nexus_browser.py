@@ -185,3 +185,95 @@ def extract_mod_page_data(
             context.close()
 
     return result
+
+
+def get_sticky_posts(
+    nexus_id: str,
+    user_data_dir: Optional[str] = None,
+    headless: bool = True,
+) -> list[str]:
+    """
+    Extract only pinned/sticky posts from a mod's Nexus page.
+
+    Parameters
+    ----------
+    nexus_id : str
+        The Nexus Mods mod ID (e.g. ``"2347"``).
+    user_data_dir : str | None
+        Path to a Chromium user-data directory that holds the user's
+        authenticated session cookies.
+    headless : bool
+        Whether to run the browser in headless mode.
+
+    Returns
+    -------
+    list[str]
+        A list of text content from pinned/sticky posts.
+    """
+    sp = _import_playwright()
+    url = MOD_PAGE_URL.format(nexus_id=nexus_id)
+    slow_mo = _human_delay()
+    logger.info("Browsing mod page %s for sticky posts (slow_mo=%d ms)", url, slow_mo)
+
+    sticky_texts: list[str] = []
+
+    with sp() as pw:
+        launch_kwargs: dict = {
+            "headless": headless,
+            "slow_mo": slow_mo,
+        }
+        if user_data_dir:
+            context = pw.chromium.launch_persistent_context(
+                user_data_dir,
+                **launch_kwargs,
+            )
+            page = context.new_page()
+        else:
+            browser = pw.chromium.launch(**launch_kwargs)
+            context = browser.new_context()
+            page = context.new_page()
+
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+
+            # Click the Posts tab to expand its content
+            posts_tab = page.query_selector(
+                "li[class*='mod-page-tab'] a[href*='posts'], "
+                "a:text('Posts'), "
+                "#posts-tab"
+            )
+            if posts_tab:
+                posts_tab.click()
+                page.wait_for_timeout(_human_delay())
+                logger.debug("Clicked Posts tab for sticky extraction")
+
+            # Look for pinned/sticky post elements
+            sticky_elements = page.query_selector_all(
+                ".comment-pinned, "
+                ".sticky-comment, "
+                "[class*='sticky'], "
+                "[class*='pinned']"
+            )
+
+            for elem in sticky_elements:
+                try:
+                    text = elem.inner_text()
+                    if text and text.strip():
+                        sticky_texts.append(text.strip())
+                except Exception as exc:
+                    logger.debug("Could not extract sticky post text: %s", exc)
+
+            if sticky_texts:
+                logger.debug(
+                    "Extracted %d sticky posts from mod %s",
+                    len(sticky_texts),
+                    nexus_id,
+                )
+            else:
+                logger.debug("No sticky posts found for mod %s", nexus_id)
+
+        finally:
+            page.close()
+            context.close()
+
+    return sticky_texts

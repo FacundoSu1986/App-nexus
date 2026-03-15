@@ -9,6 +9,7 @@ from src.browser.nexus_browser import (
     _human_delay,
     MOD_PAGE_URL,
     extract_mod_page_data,
+    get_sticky_posts,
 )
 
 
@@ -181,3 +182,92 @@ class TestExtractModPageData:
             extract_mod_page_data("12345", headless=True)
 
         assert any("selector matched nothing" in m for m in caplog.messages)
+
+
+class TestGetStickyPosts:
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_returns_list(self, mock_import):
+        """Verify get_sticky_posts returns a list."""
+        mock_page = MagicMock()
+        mock_page.query_selector.return_value = None
+        mock_page.query_selector_all.return_value = []
+
+        mock_context = MagicMock()
+        mock_context.new_page.return_value = mock_page
+
+        mock_browser = MagicMock()
+        mock_browser.new_context.return_value = mock_context
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch.return_value = mock_browser
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_pw)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_import.return_value = lambda: mock_cm
+
+        result = get_sticky_posts("12345", headless=True)
+
+        assert isinstance(result, list)
+        assert result == []
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_extracts_sticky_text(self, mock_import):
+        """When sticky elements are found, their text is returned."""
+        mock_sticky = MagicMock()
+        mock_sticky.inner_text.return_value = "Important: Load after USSEP"
+
+        mock_page = MagicMock()
+        mock_page.query_selector.return_value = MagicMock()  # posts tab
+        mock_page.query_selector_all.return_value = [mock_sticky]
+
+        mock_context = MagicMock()
+        mock_context.new_page.return_value = mock_page
+
+        mock_browser = MagicMock()
+        mock_browser.new_context.return_value = mock_context
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch.return_value = mock_browser
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_pw)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_import.return_value = lambda: mock_cm
+
+        result = get_sticky_posts("12345", headless=True)
+
+        assert len(result) == 1
+        assert "Load after USSEP" in result[0]
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_skips_empty_sticky_posts(self, mock_import):
+        """Empty sticky elements are filtered out."""
+        mock_empty = MagicMock()
+        mock_empty.inner_text.return_value = "   "
+
+        mock_valid = MagicMock()
+        mock_valid.inner_text.return_value = "Pinned post content"
+
+        mock_page = MagicMock()
+        mock_page.query_selector.return_value = None
+        mock_page.query_selector_all.return_value = [mock_empty, mock_valid]
+
+        mock_context = MagicMock()
+        mock_context.new_page.return_value = mock_page
+
+        mock_browser = MagicMock()
+        mock_browser.new_context.return_value = mock_context
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch.return_value = mock_browser
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_pw)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_import.return_value = lambda: mock_cm
+
+        result = get_sticky_posts("12345", headless=True)
+
+        assert len(result) == 1
+        assert result[0] == "Pinned post content"

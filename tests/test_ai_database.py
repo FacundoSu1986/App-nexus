@@ -35,6 +35,7 @@ class TestAiModAnalysisSchema:
         assert "requirements" in columns
         assert "patches" in columns
         assert "known_issues" in columns
+        assert "load_order" in columns
         assert "analyzed_by" in columns
         assert "last_analyzed" in columns
 
@@ -104,6 +105,7 @@ class TestUpsertAiAnalysis:
             "requirements": ["A"],
             "patches": [],
             "known_issues": [],
+            "load_order": [],
             "analyzed_by": "claude",
             "last_analyzed": "2024-01-01T00:00:00Z",
         })
@@ -111,3 +113,17 @@ class TestUpsertAiAnalysis:
         result = db.get_ai_analysis("555")
         assert result is not None
         assert result["nexus_id"] == "555"
+
+    def test_load_order_stored_and_retrieved(self, db):
+        db.upsert_ai_analysis({
+            "nexus_id": "777",
+            "requirements": [],
+            "patches": [],
+            "known_issues": [],
+            "load_order": ["Load after USSEP", "Place near bottom"],
+            "analyzed_by": "ollama",
+            "last_analyzed": "2024-06-01T12:00:00Z",
+        })
+        result = db.get_ai_analysis("777")
+        assert result is not None
+        assert result["load_order"] == ["Load after USSEP", "Place near bottom"]

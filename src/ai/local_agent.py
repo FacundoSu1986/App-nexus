@@ -13,6 +13,7 @@ Requires Ollama to be installed and running locally with a supported model
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from src.ai.tools import CHAT_SYSTEM_PROMPT, OLLAMA_TOOLS, ToolExecutor
@@ -149,6 +150,107 @@ def analyse_mod(
             "Make sure the Ollama server is running (ollama serve) "
             f"and the model '{model}' is pulled (ollama pull {model})."
         ) from exc
+
+
+# ------------------------------------------------------------------
+# Cached analysis from description + sticky posts
+# ------------------------------------------------------------------
+
+_CACHE_SYSTEM_PROMPT = (
+    "You are a Skyrim mod compatibility analyst.  Given a mod description "
+    "and optional sticky/pinned posts from its Nexus Mods page, extract "
+    "ONLY the following four categories:\n\n"
+    "1. requirements — Hard requirements: mod names that MUST be installed "
+    "for this mod to work.\n"
+    "2. patches — Recommended compatibility patches.\n"
+    "3. known_issues — Known bugs, incompatibilities or issues.\n"
+    "4. load_order — Any load-order notes or recommendations.\n\n"
+    "Respond ONLY with valid JSON in this exact format:\n"
+    '{"requirements": [], "patches": [], "known_issues": [], '
+    '"load_order": []}\n'
+    "Do NOT include any explanation or markdown."
+)
+
+
+def analyse_and_cache_mod(
+    nexus_id: str,
+    description: str,
+    sticky_posts: list[str],
+    db,
+    model: str = DEFAULT_MODEL,
+) -> dict:
+    """
+    Analyse a mod using its cached description and sticky posts, then
+    save the result to the ``ai_mod_analysis`` table.
+
+    Parameters
+    ----------
+    nexus_id : str
+        The Nexus Mods mod ID.
+    description : str
+        The mod's full description text (from the database).
+    sticky_posts : list[str]
+        Text content of pinned/sticky posts (may be empty).
+    db : DatabaseManager
+        An open database connection.
+    model : str
+        Ollama model name (default ``llama3.2``).
+
+    Returns
+    -------
+    dict
+        The parsed analysis result with keys ``requirements``, ``patches``,
+        ``known_issues``, ``load_order``.
+    """
+    ollama = _import_ollama()
+
+    parts = []
+    if description:
+        parts.append(f"== MOD DESCRIPTION ==\n{description}")
+    if sticky_posts:
+        parts.append(
+            "== STICKY / PINNED POSTS ==\n" + "\n---\n".join(sticky_posts)
+        )
+    if not parts:
+        parts.append("No mod data available.")
+
+    user_prompt = "\n\n".join(parts)
+    logger.info(
+        "Analysing mod %s with Ollama model '%s' (cached)…", nexus_id, model
+    )
+
+    try:
+        response = ollama.chat(
+            model=model,
+            messages=[
+                {"role": "system", "content": _CACHE_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        raw_text = response["message"]["content"]
+        result = _parse_response(raw_text)
+    except Exception as exc:
+        logger.error("Ollama cached analysis failed for %s: %s", nexus_id, exc)
+        result = {
+            "requirements": [],
+            "patches": [],
+            "known_issues": [],
+            "load_order": [],
+        }
+
+    analysis_record = {
+        "nexus_id": str(nexus_id),
+        "requirements": result.get("requirements", []),
+        "patches": result.get("patches", []),
+        "known_issues": result.get("known_issues", []),
+        "load_order": result.get("load_order", []),
+        "analyzed_by": "ollama",
+        "last_analyzed": datetime.now(timezone.utc).isoformat(),
+    }
+    db.upsert_ai_analysis(analysis_record)
+    logger.info("Cached AI analysis saved for mod %s.", nexus_id)
+
+    return result
 
 
 # ------------------------------------------------------------------

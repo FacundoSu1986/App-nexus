@@ -107,6 +107,7 @@ class DatabaseManager:
                 requirements    TEXT NOT NULL DEFAULT '[]',   -- JSON list
                 patches         TEXT NOT NULL DEFAULT '[]',   -- JSON list
                 known_issues    TEXT NOT NULL DEFAULT '[]',   -- JSON list
+                load_order      TEXT NOT NULL DEFAULT '[]',   -- JSON list
                 analyzed_by     TEXT NOT NULL DEFAULT '',      -- 'ollama' or 'claude'
                 last_analyzed   TEXT NOT NULL DEFAULT ''       -- ISO timestamp
             );
@@ -323,14 +324,15 @@ class DatabaseManager:
                 """
                 INSERT INTO ai_mod_analysis
                     (nexus_id, requirements, patches, known_issues,
-                     analyzed_by, last_analyzed)
+                     load_order, analyzed_by, last_analyzed)
                 VALUES
                     (:nexus_id, :requirements, :patches, :known_issues,
-                     :analyzed_by, :last_analyzed)
+                     :load_order, :analyzed_by, :last_analyzed)
                 ON CONFLICT(nexus_id) DO UPDATE SET
                     requirements  = excluded.requirements,
                     patches       = excluded.patches,
                     known_issues  = excluded.known_issues,
+                    load_order    = excluded.load_order,
                     analyzed_by   = excluded.analyzed_by,
                     last_analyzed = excluded.last_analyzed
                 """,
@@ -339,6 +341,7 @@ class DatabaseManager:
                     "requirements": json.dumps(analysis.get("requirements", [])),
                     "patches": json.dumps(analysis.get("patches", [])),
                     "known_issues": json.dumps(analysis.get("known_issues", [])),
+                    "load_order": json.dumps(analysis.get("load_order", [])),
                     "analyzed_by": analysis.get("analyzed_by", ""),
                     "last_analyzed": analysis.get(
                         "last_analyzed",
@@ -366,4 +369,5 @@ class DatabaseManager:
         entry["requirements"] = json.loads(entry["requirements"])
         entry["patches"] = json.loads(entry["patches"])
         entry["known_issues"] = json.loads(entry["known_issues"])
+        entry["load_order"] = json.loads(entry.get("load_order", "[]"))
         return entry

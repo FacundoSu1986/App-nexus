@@ -421,6 +421,7 @@ class MainWindow(tk.Tk):
         # Create a thread-local DB connection
         thread_db = DatabaseManager(db_path=self._db.db_path)
         thread_db.connect()
+        synced_ids: list[str] = []
         try:
             mods = self._profile.enabled_mods  # type: ignore[union-attr]
             total = len(mods)
@@ -444,6 +445,7 @@ class MainWindow(tk.Tk):
                         0, self._set_status,
                         f"Skipping '{mod.name}' (already cached).",
                     )
+                    synced_ids.append(str(nexus_id))
                     continue
 
                 try:
@@ -453,6 +455,8 @@ class MainWindow(tk.Tk):
                     requirements = self._api.get_mod_requirements(nexus_id)  # type: ignore[union-attr]
                     if requirements:
                         thread_db.upsert_requirements(nexus_id, requirements)
+
+                    synced_ids.append(str(nexus_id))
 
                 except RateLimitError:
                     self.after(
@@ -473,15 +477,73 @@ class MainWindow(tk.Tk):
             self.after(0, self._refresh_main_db)
             # Restore UI safely on main thread (must be inside finally so
             # buttons are always re-enabled even when an error bubbles up)
-            self.after(0, self._finish_sync)
+            self.after(0, self._finish_sync, synced_ids)
 
-    def _finish_sync(self) -> None:
+    def _finish_sync(self, synced_ids: list[str] | None = None) -> None:
         """Helper to cleanly finish the sync process on the main thread."""
         self._set_status("Sync complete.")
         self._populate_mod_list()
         self._btn_sync.config(state="normal")
         self._btn_analyse.config(state="normal")
         logger.info("Sync complete.")
+
+        # Trigger background AI analysis for synced mods
+        if synced_ids:
+            thread = threading.Thread(
+                target=self._background_ai_analysis,
+                args=(list(synced_ids),),
+                daemon=True,
+            )
+            thread.start()
+
+    def _background_ai_analysis(self, nexus_ids: list[str]) -> None:
+        """Run AI analysis on synced mods in a background thread."""
+        thread_db = DatabaseManager(db_path=self._db.db_path)
+        thread_db.connect()
+        try:
+            total = len(nexus_ids)
+            for idx, nexus_id in enumerate(nexus_ids, start=1):
+                # Skip mods that already have a cached analysis
+                existing = thread_db.get_ai_analysis(nexus_id)
+                if existing:
+                    continue
+
+                mod = thread_db.get_mod(int(nexus_id))
+                if not mod:
+                    continue
+
+                description = mod.get("description", "")
+                if not description:
+                    continue
+
+                self.after(
+                    0, self._set_status,
+                    f"AI analysis {idx}/{total}: {mod.get('name', nexus_id)}…",
+                )
+
+                try:
+                    from src.ai.local_agent import analyse_and_cache_mod
+
+                    analyse_and_cache_mod(
+                        nexus_id=nexus_id,
+                        description=description,
+                        sticky_posts=[],
+                        db=thread_db,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Background AI analysis failed for mod %s: %s",
+                        nexus_id,
+                        exc,
+                    )
+        except Exception as exc:
+            logger.error("Background AI analysis error: %s", exc)
+        finally:
+            thread_db.close()
+            self.after(0, self._refresh_main_db)
+            self.after(
+                0, self._set_status, "Background AI analysis complete."
+            )
 
     def _update_loot_threaded(self) -> None:
         """Run the LOOT masterlist update in a background thread."""

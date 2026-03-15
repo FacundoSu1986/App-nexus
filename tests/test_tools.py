@@ -17,10 +17,10 @@ class TestToolDefinitions:
     """Validate tool schema structure."""
 
     def test_ollama_tools_has_four_tools(self):
-        assert len(OLLAMA_TOOLS) == 4
+        assert len(OLLAMA_TOOLS) == 5
 
     def test_anthropic_tools_has_four_tools(self):
-        assert len(ANTHROPIC_TOOLS) == 4
+        assert len(ANTHROPIC_TOOLS) == 5
 
     def test_ollama_tool_names(self):
         names = [t["function"]["name"] for t in OLLAMA_TOOLS]
@@ -28,6 +28,7 @@ class TestToolDefinitions:
         assert "get_mod_requirements" in names
         assert "get_loot_warnings" in names
         assert "find_patches" in names
+        assert "get_mod_description" in names
 
     def test_anthropic_tool_names(self):
         names = [t["name"] for t in ANTHROPIC_TOOLS]
@@ -35,6 +36,7 @@ class TestToolDefinitions:
         assert "get_mod_requirements" in names
         assert "get_loot_warnings" in names
         assert "find_patches" in names
+        assert "get_mod_description" in names
 
     def test_ollama_tools_have_required_fields(self):
         for tool in OLLAMA_TOOLS:
@@ -157,3 +159,28 @@ class TestToolExecutor:
         result = json.loads(raw)
         assert "error" in result
         assert "DB error" in result["error"]
+
+    def test_get_mod_description_found(self, mock_db):
+        mock_db.get_ai_analysis.return_value = {
+            "nexus_id": "100",
+            "requirements": ["SKSE64"],
+            "patches": ["Patch A"],
+            "known_issues": ["Bug X"],
+            "load_order": ["Load after USSEP"],
+            "analyzed_by": "ollama",
+            "last_analyzed": "2024-06-01T12:00:00Z",
+        }
+        executor = ToolExecutor(mock_db)
+        raw = executor.execute("get_mod_description", {"nexus_id": "100"})
+        result = json.loads(raw)
+        assert result["nexus_id"] == "100"
+        assert result["requirements"] == ["SKSE64"]
+        assert result["load_order"] == ["Load after USSEP"]
+        mock_db.get_ai_analysis.assert_called_once_with("100")
+
+    def test_get_mod_description_not_found(self, mock_db):
+        mock_db.get_ai_analysis.return_value = None
+        executor = ToolExecutor(mock_db)
+        raw = executor.execute("get_mod_description", {"nexus_id": "99999"})
+        result = json.loads(raw)
+        assert "No AI analysis cached" in result.get("note", "")
