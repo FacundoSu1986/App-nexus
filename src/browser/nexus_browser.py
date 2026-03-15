@@ -100,31 +100,83 @@ def extract_mod_page_data(
 
             # --- Requirements section ---
             try:
+                # Click the Requirements tab to expand its content
+                req_tab = page.query_selector(
+                    "li[class*='mod-page-tab'] a[href*='requirements'], "
+                    "a:text('Requirements'), "
+                    "#requirement-tab"
+                )
+                if req_tab:
+                    req_tab.click()
+                    page.wait_for_timeout(_human_delay())
+                    logger.debug("Clicked Requirements tab")
+
                 req_section = page.query_selector(
-                    "#mod-page-tab-requirements, .tabbed-block .requirements"
+                    "#mod-page-tab-requirements, "
+                    ".tabbed-block .requirements, "
+                    "#tab-requirements, "
+                    "div[class*='requirements']"
                 )
                 if req_section:
                     result["requirements_html"] = req_section.inner_html()
+                    logger.debug(
+                        "Requirements HTML extracted (%d chars): %.200s",
+                        len(result["requirements_html"]),
+                        result["requirements_html"],
+                    )
+                else:
+                    logger.debug("Requirements selector matched nothing")
             except Exception as exc:
                 logger.warning("Could not extract requirements: %s", exc)
 
             # --- Description section ---
             try:
                 desc_section = page.query_selector(
-                    "#mod-page-tab-description, .tabbed-block .description"
+                    "#mod-page-tab-description, "
+                    ".tabbed-block .description, "
+                    "#tab-description, "
+                    "div[class*='mod-desc']"
                 )
                 if desc_section:
                     result["description_html"] = desc_section.inner_html()
+                    logger.debug(
+                        "Description HTML extracted (%d chars): %.200s",
+                        len(result["description_html"]),
+                        result["description_html"],
+                    )
+                else:
+                    logger.debug("Description selector matched nothing")
             except Exception as exc:
                 logger.warning("Could not extract description: %s", exc)
 
             # --- Posts / comments section ---
             try:
+                # Click the Posts tab to expand its content
+                posts_tab = page.query_selector(
+                    "li[class*='mod-page-tab'] a[href*='posts'], "
+                    "a:text('Posts'), "
+                    "#posts-tab"
+                )
+                if posts_tab:
+                    posts_tab.click()
+                    page.wait_for_timeout(_human_delay())
+                    logger.debug("Clicked Posts tab")
+
                 posts_section = page.query_selector(
-                    "#mod-page-tab-posts, .comments-container"
+                    "#mod-page-tab-posts, "
+                    ".comments-container, "
+                    "#tab-posts, "
+                    "div[class*='comment']"
                 )
                 if posts_section:
                     result["posts_html"] = posts_section.inner_html()
+                    logger.debug(
+                        "Posts HTML extracted (%d chars): %.200s",
+                        len(result["posts_html"]),
+                        result["posts_html"],
+                    )
+                else:
+                    logger.debug("Posts selector matched nothing")
             except Exception as exc:
                 logger.warning("Could not extract posts: %s", exc)
 
