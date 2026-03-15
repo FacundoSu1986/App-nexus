@@ -168,3 +168,77 @@ class CompatibilityAnalyzer:
                 "loot_warnings": len(loot_warnings),
             },
         }
+
+
+# ---------------------------------------------------------------------------
+# Traffic-light status helpers
+# ---------------------------------------------------------------------------
+
+_STATUS_OK = "🟢 OK"
+_STATUS_WARN = "🟡 WARN"
+_STATUS_ERROR = "🔴 ERROR"
+
+_SEVERITY_LABELS = {0: _STATUS_OK, 1: _STATUS_WARN, 2: _STATUS_ERROR}
+
+
+def _match_plugin_to_mod(
+    plugin_name: str,
+    mods: "list[InstalledMod]",
+) -> str | None:
+    """Return the mod name that best matches *plugin_name*, or ``None``."""
+    for mod in mods:
+        if _similar(mod.name, plugin_name):
+            return mod.name
+    return None
+
+
+def compute_mod_statuses(
+    report: dict,
+    mods: "list[InstalledMod]",
+) -> dict[str, str]:
+    """Derive a per-mod traffic-light status string from an analysis report.
+
+    Parameters
+    ----------
+    report:
+        The dict returned by :meth:`CompatibilityAnalyzer.analyse`.
+    mods:
+        The full list of :class:`InstalledMod` objects from the profile.
+
+    Returns
+    -------
+    dict[str, str]
+        Mapping of mod name → status string (``"🟢 OK"``, ``"🟡 WARN"``
+        or ``"🔴 ERROR"``).  Only **enabled** mods are included.
+    """
+    # severity per mod: 0 = OK, 1 = WARN, 2 = ERROR
+    severity: dict[str, int] = {}
+
+    for entry in report["missing_requirements"]:
+        mod_name = entry["mod_name"]
+        if entry["is_patch"]:
+            severity[mod_name] = max(severity.get(mod_name, 0), 1)
+        else:
+            severity[mod_name] = max(severity.get(mod_name, 0), 2)
+
+    # LOOT entries are keyed by plugin filename; try to map to a mod name
+    for entry in report["loot_incompatibilities"]:
+        matched = _match_plugin_to_mod(entry["mod_name"], mods)
+        if matched:
+            severity[matched] = max(severity.get(matched, 0), 2)
+
+    for entry in report["loot_warnings"]:
+        matched = _match_plugin_to_mod(entry["mod_name"], mods)
+        if matched:
+            severity[matched] = max(severity.get(matched, 0), 1)
+
+    result: dict[str, str] = {}
+    for name, level in severity.items():
+        result[name] = _SEVERITY_LABELS[level]
+
+    # Every enabled mod absent from *severity* is green
+    for mod in mods:
+        if mod.enabled and mod.name not in result:
+            result[mod.name] = _STATUS_OK
+
+    return result
