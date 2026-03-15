@@ -26,6 +26,7 @@ import sv_ttk
 
 from src.analyzer.compatibility import CompatibilityAnalyzer, compute_mod_statuses
 from src.database.manager import DatabaseManager
+from src.gui.chat_panel import ChatPanel
 from src.gui.mod_detail_frame import ModDetailFrame
 from src.loot.masterlist import update_masterlist
 from src.mo2.reader import MO2Reader, MO2Profile
@@ -67,7 +68,7 @@ class MainWindow(tk.Tk):
 
         self._build_toolbar()
         self._build_main_area()
-        self._build_report_panel()
+        self._build_bottom_panels()
         self._build_status_bar()
 
     def _build_toolbar(self) -> None:
@@ -189,11 +190,16 @@ class MainWindow(tk.Tk):
         self._detail = ModDetailFrame(paned, padding=4)
         paned.add(self._detail, weight=3)
 
-    def _build_report_panel(self) -> None:
-        report_frame = ttk.LabelFrame(self, text="Analysis Report", padding=6)
-        report_frame.grid(row=2, column=0, sticky="nsew", padx=6, pady=(0, 4))
+    def _build_bottom_panels(self) -> None:
+        """Build the bottom notebook with Report and AI Chat tabs."""
+        notebook = ttk.Notebook(self)
+        notebook.grid(row=2, column=0, sticky="nsew", padx=6, pady=(0, 4))
+
+        # ── Report tab ────────────────────────────────────────────────
+        report_frame = ttk.Frame(notebook, padding=6)
         report_frame.columnconfigure(0, weight=1)
         report_frame.rowconfigure(0, weight=1)
+        notebook.add(report_frame, text="Analysis Report")
 
         self._report_text = tk.Text(
             report_frame,
@@ -207,6 +213,10 @@ class MainWindow(tk.Tk):
         sb = ttk.Scrollbar(report_frame, command=self._report_text.yview)
         sb.grid(row=0, column=1, sticky="ns")
         self._report_text.configure(yscrollcommand=sb.set)
+
+        # ── AI Chat tab ───────────────────────────────────────────────
+        self._chat_panel = ChatPanel(notebook, db=self._db, padding=6)
+        notebook.add(self._chat_panel, text="AI Chat")
 
     def _build_status_bar(self) -> None:
         status_frame = ttk.Frame(self)
@@ -583,6 +593,9 @@ class MainWindow(tk.Tk):
                     "Please enter your Anthropic API key for Claude.",
                 )
                 return
+            # Share the Anthropic key with the chat panel
+            if api_key:
+                self._chat_panel.set_claude_api_key(api_key)
             self._run_ai_analysis(nexus_id, mod_name, provider, api_key)
 
         ttk.Button(btn_frame, text="Run Analysis", command=on_run).pack(
@@ -804,6 +817,7 @@ class MainWindow(tk.Tk):
         """Close and reopen the main-thread DB so it sees data written by the sync thread."""
         self._db.close()
         self._db.connect()
+        self._chat_panel.set_db(self._db)
 
     @staticmethod
     def _set_text(widget: tk.Text, text: str) -> None:

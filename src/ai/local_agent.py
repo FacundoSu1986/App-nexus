@@ -4,6 +4,9 @@ Local AI agent powered by Ollama (free, runs entirely on the user's machine).
 Analyses raw HTML/text extracted by the Playwright browser agent and returns
 structured JSON with requirements, patches, and known issues.
 
+Also provides a conversational ``chat`` interface that uses Ollama's function
+calling (``tools`` parameter) so the model can query the local mod database.
+
 Requires Ollama to be installed and running locally with a supported model
 (llama3 or mistral).
 """
@@ -11,6 +14,8 @@ Requires Ollama to be installed and running locally with a supported model
 import json
 import logging
 from typing import Optional
+
+from src.ai.tools import CHAT_SYSTEM_PROMPT, OLLAMA_TOOLS, ToolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -144,3 +149,76 @@ def analyse_mod(
             "Make sure the Ollama server is running (ollama serve) "
             f"and the model '{model}' is pulled (ollama pull {model})."
         ) from exc
+
+
+# ------------------------------------------------------------------
+# Conversational chat with function calling
+# ------------------------------------------------------------------
+
+_MAX_TOOL_ROUNDS = 5
+
+
+def chat(
+    user_message: str,
+    db,
+    model: str = DEFAULT_MODEL,
+    history: Optional[list] = None,
+) -> tuple[str, list]:
+    """
+    Send a conversational message and let the model call tools as needed.
+
+    Parameters
+    ----------
+    user_message : str
+        The user's question or message.
+    db : DatabaseManager
+        An open database connection for tool execution.
+    model : str
+        Ollama model name.
+    history : list or None
+        Previous message history (list of dicts).  A new list is created
+        when ``None``.
+
+    Returns
+    -------
+    tuple[str, list]
+        ``(assistant_reply, updated_history)``
+    """
+    ollama = _import_ollama()
+    executor = ToolExecutor(db)
+
+    if history is None:
+        history = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}]
+
+    history.append({"role": "user", "content": user_message})
+
+    for _ in range(_MAX_TOOL_ROUNDS):
+        response = ollama.chat(
+            model=model,
+            messages=history,
+            tools=OLLAMA_TOOLS,
+        )
+
+        msg = response["message"]
+        history.append(msg)
+
+        tool_calls = msg.get("tool_calls")
+        if not tool_calls:
+            # No more tool calls — the model produced a final text response
+            return msg.get("content", ""), history
+
+        # Execute each requested tool and feed results back
+        for call in tool_calls:
+            fn = call["function"]
+            tool_name = fn["name"]
+            arguments = fn.get("arguments", {})
+            logger.info("Ollama tool call: %s(%s)", tool_name, arguments)
+
+            result_str = executor.execute(tool_name, arguments)
+            history.append({
+                "role": "tool",
+                "content": result_str,
+            })
+
+    # Safety: if we exhaust rounds, return whatever the last message was
+    return history[-1].get("content", ""), history

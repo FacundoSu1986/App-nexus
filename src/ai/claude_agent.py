@@ -4,6 +4,9 @@ Premium AI agent powered by the Anthropic Claude API.
 Same interface as ``local_agent`` but uses Claude for smarter/faster analysis.
 The user must supply their own Anthropic API key.
 
+Also provides a conversational ``chat`` interface that uses Anthropic's
+``tool_use`` feature so the model can query the local mod database.
+
 Attribution: **Powered by Claude** (Anthropic) — displayed in the UI when
 this agent is used.
 """
@@ -11,6 +14,8 @@ this agent is used.
 import json
 import logging
 from typing import Optional
+
+from src.ai.tools import ANTHROPIC_TOOLS, CHAT_SYSTEM_PROMPT, ToolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -130,3 +135,102 @@ def analyse_mod(
             f"Claude analysis failed: {exc}\n\n"
             "Make sure your Anthropic API key is valid."
         ) from exc
+
+
+# ------------------------------------------------------------------
+# Conversational chat with function calling (tool_use)
+# ------------------------------------------------------------------
+
+_MAX_TOOL_ROUNDS = 5
+
+
+def chat(
+    user_message: str,
+    db,
+    api_key: str,
+    model: str = DEFAULT_MODEL,
+    history: Optional[list] = None,
+) -> tuple[str, list]:
+    """
+    Send a conversational message and let Claude call tools as needed.
+
+    Parameters
+    ----------
+    user_message : str
+        The user's question or message.
+    db : DatabaseManager
+        An open database connection for tool execution.
+    api_key : str
+        Anthropic API key.
+    model : str
+        Claude model name.
+    history : list or None
+        Previous message history (list of dicts).  A new list is created
+        when ``None``.
+
+    Returns
+    -------
+    tuple[str, list]
+        ``(assistant_reply, updated_history)``
+    """
+    anthropic = _import_anthropic()
+    client = anthropic.Anthropic(api_key=api_key)
+    executor = ToolExecutor(db)
+
+    if history is None:
+        history = []
+
+    history.append({"role": "user", "content": user_message})
+
+    for _ in range(_MAX_TOOL_ROUNDS):
+        response = client.messages.create(
+            model=model,
+            max_tokens=1024,
+            system=CHAT_SYSTEM_PROMPT,
+            tools=ANTHROPIC_TOOLS,
+            messages=history,
+        )
+
+        # Collect text blocks and tool-use blocks from the response
+        assistant_content = response.content
+        history.append({"role": "assistant", "content": assistant_content})
+
+        # Check if the model wants to call any tools
+        tool_use_blocks = [
+            block for block in assistant_content
+            if getattr(block, "type", None) == "tool_use"
+        ]
+
+        if not tool_use_blocks:
+            # Extract text from the response
+            text_parts = [
+                block.text
+                for block in assistant_content
+                if getattr(block, "type", None) == "text"
+            ]
+            return "\n".join(text_parts), history
+
+        # Execute tools and feed results back
+        tool_results = []
+        for block in tool_use_blocks:
+            tool_name = block.name
+            arguments = block.input
+            logger.info("Claude tool call: %s(%s)", tool_name, arguments)
+
+            result_str = executor.execute(tool_name, arguments)
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": result_str,
+            })
+
+        history.append({"role": "user", "content": tool_results})
+
+    # Safety: extract text from last assistant response
+    text_parts = []
+    last = history[-1]
+    if isinstance(last.get("content"), list):
+        for block in last["content"]:
+            if getattr(block, "type", None) == "text":
+                text_parts.append(block.text)
+    return "\n".join(text_parts) if text_parts else "", history
