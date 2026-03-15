@@ -285,6 +285,7 @@ class MainWindow(tk.Tk):
                 modlist_path=str(modlist_path),
                 plugins_path=str(plugins_path) if plugins_path.exists() else None,
             )
+            self._last_report = None
             self._populate_mod_list()
             self._set_status(
                 f"Loaded {len(self._profile.mods)} mods "
