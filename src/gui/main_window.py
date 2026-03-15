@@ -17,7 +17,7 @@ import logging
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Optional
 import webbrowser
 
@@ -128,6 +128,17 @@ class MainWindow(tk.Tk):
             command=self._update_loot_threaded,
         )
         self._btn_loot.pack(side="left")
+
+        ttk.Separator(toolbar, orient="vertical").pack(
+            side="left", fill="y", padx=8
+        )
+
+        self._btn_ai_analyse = ttk.Button(
+            toolbar,
+            text="🤖 Analyze with AI",
+            command=self._ai_analyse_threaded,
+        )
+        self._btn_ai_analyse.pack(side="left")
 
         ttk.Separator(toolbar, orient="vertical").pack(
             side="left", fill="y", padx=8
@@ -330,6 +341,7 @@ class MainWindow(tk.Tk):
         # Disable buttons to prevent concurrent syncs
         self._btn_sync.config(state="disabled")
         self._btn_analyse.config(state="disabled")
+        self._btn_ai_analyse.config(state="disabled")
 
         thread = threading.Thread(target=self._sync_mods, daemon=True)
         thread.start()
@@ -406,6 +418,7 @@ class MainWindow(tk.Tk):
         self._populate_mod_list()
         self._btn_sync.config(state="normal")
         self._btn_analyse.config(state="normal")
+        self._btn_ai_analyse.config(state="normal")
         logger.info("Sync complete.")
 
     def _update_loot_threaded(self) -> None:
@@ -413,6 +426,7 @@ class MainWindow(tk.Tk):
         self._btn_loot.config(state="disabled")
         self._btn_sync.config(state="disabled")
         self._btn_analyse.config(state="disabled")
+        self._btn_ai_analyse.config(state="disabled")
 
         thread = threading.Thread(target=self._update_loot, daemon=True)
         thread.start()
@@ -439,6 +453,7 @@ class MainWindow(tk.Tk):
         self._btn_loot.config(state="normal")
         self._btn_sync.config(state="normal")
         self._btn_analyse.config(state="normal")
+        self._btn_ai_analyse.config(state="normal")
 
     def _analyse(self) -> None:
         if self._profile is None:
@@ -449,6 +464,187 @@ class MainWindow(tk.Tk):
         analyser = CompatibilityAnalyzer(self._db)
         report = analyser.analyse(self._profile)
         self._display_report(report)
+
+    # ------------------------------------------------------------------
+    # AI mod analysis
+    # ------------------------------------------------------------------
+
+    def _ai_analyse_threaded(self) -> None:
+        """Open the AI engine selection dialog then run analysis in a background thread."""
+        # Ask the user which AI engine to use
+        engine, api_key = self._ask_ai_engine()
+        if engine is None:
+            return  # User cancelled
+
+        # Determine which mod is selected
+        selection = self._mod_list.selection()
+        if not selection:
+            messagebox.showwarning(
+                "No Mod Selected",
+                "Please select a mod from the list before running AI analysis.",
+            )
+            return
+
+        item = self._mod_list.item(selection[0])
+        mod_name = item["values"][0]
+        results = self._db.search_mods_by_name(mod_name)
+        if not results:
+            messagebox.showwarning(
+                "Mod Not in Database",
+                f"'{mod_name}' is not in the local database. "
+                "Please sync its data from Nexus first.",
+            )
+            return
+
+        nexus_id = str(results[0]["mod_id"])
+
+        # Disable all toolbar buttons while analysis runs
+        self._btn_sync.config(state="disabled")
+        self._btn_analyse.config(state="disabled")
+        self._btn_loot.config(state="disabled")
+        self._btn_ai_analyse.config(state="disabled")
+
+        thread = threading.Thread(
+            target=self._ai_analyse,
+            args=(nexus_id, mod_name, engine, api_key),
+            daemon=True,
+        )
+        thread.start()
+
+    def _ask_ai_engine(self) -> tuple:
+        """
+        Show a dialog asking the user to choose an AI engine.
+
+        Returns
+        -------
+        (engine, api_key) where engine is 'ollama' or 'claude', or
+        (None, None) if the user cancelled.
+        """
+        dialog = _AIEngineDialog(self)
+        self.wait_window(dialog)
+        return dialog.result_engine, dialog.result_api_key
+
+    def _ai_analyse(self, nexus_id: str, mod_name: str, engine: str, api_key: str) -> None:
+        """
+        Background thread: fetch mod page with Playwright, run AI analysis, save results.
+        """
+        thread_db = DatabaseManager(db_path=self._db.db_path)
+        thread_db.connect()
+        try:
+            # Step 1: fetch mod page content via Playwright
+            self.after(0, self._set_status, f"Fetching mod page for '{mod_name}'…")
+            try:
+                from src.browser.nexus_browser import NexusBrowser
+                browser = NexusBrowser()
+                page_data = browser.fetch_mod_page(nexus_id)
+                content = (
+                    page_data.get("requirements_text", "") + "\n\n"
+                    + page_data.get("comments_text", "")
+                ).strip()
+            except RuntimeError as exc:
+                # Lock contention — another analysis is running
+                self.after(0, self._set_status, str(exc))
+                self.after(
+                    0,
+                    messagebox.showwarning,
+                    "Analysis Running",
+                    str(exc),
+                )
+                return
+            except Exception as exc:
+                logger.error("Playwright fetch failed for mod %s: %s", nexus_id, exc)
+                self.after(0, self._set_status, f"Browser fetch failed: {exc}")
+                self.after(
+                    0,
+                    messagebox.showerror,
+                    "Browser Error",
+                    f"Could not fetch mod page:\n{exc}",
+                )
+                return
+
+            # Step 2: run the selected AI agent
+            self.after(0, self._set_status, f"Running AI analysis ({engine}) for '{mod_name}'…")
+            try:
+                if engine == "ollama":
+                    from src.ai.local_agent import analyze_mod_content
+                    analysis = analyze_mod_content(content)
+                else:  # claude
+                    from src.ai.claude_agent import analyze_mod_content
+                    analysis = analyze_mod_content(content, api_key=api_key)
+            except Exception as exc:
+                logger.error("AI analysis failed for mod %s: %s", nexus_id, exc)
+                self.after(0, self._set_status, f"AI analysis failed: {exc}")
+                self.after(
+                    0,
+                    messagebox.showerror,
+                    "AI Error",
+                    f"AI analysis failed:\n{exc}",
+                )
+                return
+
+            # Step 3: save to database
+            try:
+                thread_db.upsert_ai_analysis(nexus_id, analysis, analyzed_by=engine)
+            except Exception as exc:
+                logger.error("Failed to save AI analysis for mod %s: %s", nexus_id, exc)
+
+            # Step 4: display results in the report panel
+            self.after(0, self._display_ai_report, mod_name, analysis, engine)
+            self.after(0, self._set_status, f"AI analysis complete for '{mod_name}'.")
+        finally:
+            thread_db.close()
+            self.after(0, self._finish_ai_analyse)
+
+    def _finish_ai_analyse(self) -> None:
+        """Re-enable toolbar buttons after AI analysis completes."""
+        self._btn_sync.config(state="normal")
+        self._btn_analyse.config(state="normal")
+        self._btn_loot.config(state="normal")
+        self._btn_ai_analyse.config(state="normal")
+
+    def _display_ai_report(self, mod_name: str, analysis: dict, engine: str) -> None:
+        """Render AI analysis results in the report panel."""
+        lines = [
+            "╔══════════════════════════════════════════════════════════╗",
+            f"  AI Analysis: {mod_name}",
+            "╚══════════════════════════════════════════════════════════╝",
+            "",
+        ]
+
+        if analysis.get("error"):
+            lines.append(f"⚠ Error: {analysis['error']}")
+            lines.append("")
+
+        requirements = analysis.get("requirements", [])
+        if requirements:
+            lines.append("── REQUIREMENTS ──")
+            for req in requirements:
+                lines.append(f"  • {req}")
+            lines.append("")
+
+        patches = analysis.get("patches", [])
+        if patches:
+            lines.append("── COMPATIBILITY PATCHES ──")
+            for patch in patches:
+                lines.append(f"  • {patch}")
+            lines.append("")
+
+        known_issues = analysis.get("known_issues", [])
+        if known_issues:
+            lines.append("── KNOWN ISSUES ──")
+            for issue in known_issues:
+                lines.append(f"  ⚠ {issue}")
+            lines.append("")
+
+        if not requirements and not patches and not known_issues and not analysis.get("error"):
+            lines.append("✔ No requirements, patches or known issues found.")
+            lines.append("")
+
+        if engine == "claude":
+            lines.append("─────────────────────────────────────────────────────────")
+            lines.append("  Powered by Claude  (Anthropic)")
+
+        self._set_text(self._report_text, "\n".join(lines))
 
     def _display_report(self, report: dict) -> None:
         stats = report["stats"]
@@ -517,4 +713,127 @@ class MainWindow(tk.Tk):
 
     def _on_close(self) -> None:
         self._db.close()
+        self.destroy()
+
+
+class _AIEngineDialog(tk.Toplevel):
+    """
+    Modal dialog that lets the user choose an AI engine for mod analysis.
+
+    After the dialog is closed, read:
+    - ``result_engine``: ``'ollama'`` or ``'claude'``, or ``None`` if cancelled.
+    - ``result_api_key``: Anthropic API key string (only relevant for Claude).
+    """
+
+    def __init__(self, parent: tk.Tk):
+        super().__init__(parent)
+        self.title("Analyze with AI")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        self.result_engine: Optional[str] = None
+        self.result_api_key: str = ""
+
+        self._engine_var = tk.StringVar(value="ollama")
+        self._api_key_var = tk.StringVar()
+
+        self._build()
+
+        # Centre over parent
+        self.update_idletasks()
+        px = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
+        py = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{px}+{py}")
+
+    def _build(self) -> None:
+        frame = ttk.Frame(self, padding=16)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(
+            frame,
+            text="Choose AI engine for mod analysis:",
+            font=("Segoe UI", 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
+        ttk.Radiobutton(
+            frame,
+            text="Local (Ollama — Free)",
+            variable=self._engine_var,
+            value="ollama",
+            command=self._on_engine_change,
+        ).grid(row=1, column=0, columnspan=2, sticky="w")
+
+        ttk.Radiobutton(
+            frame,
+            text="Claude API (Premium)",
+            variable=self._engine_var,
+            value="claude",
+            command=self._on_engine_change,
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        # Claude API key row (shown only when Claude is selected)
+        self._key_label = ttk.Label(frame, text="Anthropic API Key:")
+        self._key_label.grid(row=3, column=0, sticky="w", pady=(8, 0))
+
+        self._key_entry = ttk.Entry(
+            frame, textvariable=self._api_key_var, width=36, show="*"
+        )
+        self._key_entry.grid(row=3, column=1, sticky="ew", pady=(8, 0), padx=(8, 0))
+
+        # Attribution note
+        self._attribution_label = ttk.Label(
+            frame,
+            text='Results will be marked as "Powered by Claude"',
+            foreground="grey",
+            font=("Segoe UI", 8),
+        )
+        self._attribution_label.grid(
+            row=4, column=0, columnspan=2, sticky="w", pady=(2, 0)
+        )
+
+        # Buttons
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=5, column=0, columnspan=2, pady=(16, 0), sticky="e")
+
+        ttk.Button(btn_frame, text="Analyze", command=self._on_ok).pack(
+            side="right", padx=(8, 0)
+        )
+        ttk.Button(btn_frame, text="Cancel", command=self._on_cancel).pack(
+            side="right"
+        )
+
+        frame.columnconfigure(1, weight=1)
+
+        # Start with Claude-specific fields hidden
+        self._on_engine_change()
+
+    def _on_engine_change(self) -> None:
+        is_claude = self._engine_var.get() == "claude"
+        state = "normal" if is_claude else "disabled"
+        self._key_label.configure(foreground="" if is_claude else "grey")
+        self._key_entry.configure(state=state)
+        self._attribution_label.configure(
+            foreground="grey" if is_claude else "#d3d3d3"
+        )
+
+    def _on_ok(self) -> None:
+        engine = self._engine_var.get()
+        api_key = self._api_key_var.get().strip()
+
+        if engine == "claude" and not api_key:
+            messagebox.showwarning(
+                "API Key Required",
+                "Please enter your Anthropic API key to use Claude.",
+                parent=self,
+            )
+            return
+
+        self.result_engine = engine
+        self.result_api_key = api_key
+        self.destroy()
+
+    def _on_cancel(self) -> None:
+        self.result_engine = None
+        self.result_api_key = ""
         self.destroy()
