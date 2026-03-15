@@ -1,77 +1,128 @@
-# App-nexus
+# App-nexus — Skyrim Mod Compatibility Manager
 
-**Gestor de Compatibilidad de Mods de Skyrim**
+**App-nexus** es un gestor de compatibilidad de mods para **Skyrim Special Edition**.
+...descripción...
 
-App-nexus es una herramienta de escritorio que ayuda a los jugadores de Skyrim a gestionar la compatibilidad de sus mods. Se integra con [Nexus Mods](https://www.nexusmods.com/) y [Mod Organizer 2](https://www.modorganizer.org/) para detectar requisitos faltantes, conflictos e incompatibilidades.
+> 💡 *Proyecto hobby creado por un apasionado de Skyrim con ayuda de IAs 
+> (Claude, GitHub Copilot, Gemini, Kimi). ¡Contribuciones bienvenidas!*
+
+---
+
+
+**App-nexus** es un gestor de compatibilidad de mods para **Skyrim Special Edition**.
+Lee tu lista de mods de **Mod Organizer 2**, consulta la API de **Nexus Mods** y cruza los
+datos con la **masterlist de LOOT** para detectar dependencias faltantes,
+incompatibilidades y advertencias — todo desde una interfaz gráfica sencilla con tema oscuro.
+
+---
+
+## Captura de pantalla
+
+> ![Captura de pantalla de App-nexus](docs/screenshot.png)
+>
+> *(Reemplaza esta imagen con una captura real de la aplicación)*
+
+---
 
 ## Características
 
-- **Validación de clave API de Nexus Mods** — autenticación segura con la API de Nexus.
-- **Carga de perfiles MO2** — lee tu `modlist.txt` y `plugins.txt` directamente.
-- **Sincronización con Nexus** — descarga metadatos y requisitos de cada mod.
-- **Análisis de compatibilidad** — detecta mods requeridos faltantes y parches.
-- **Integración con LOOT** — identifica incompatibilidades y advertencias del masterlist de LOOT.
-- **Interfaz en español** — toda la interfaz está traducida al español.
+- **Lectura automática de Mod Organizer 2**: detecta instancias, perfiles, `modlist.txt`,
+  `plugins.txt` y `meta.ini` de cada mod.
+- **Consulta a la API de Nexus Mods**: obtiene nombre, descripción, requisitos y parches
+  de cada mod directamente desde Nexus.
+- **Análisis de compatibilidad en tres capas**:
+  - Requisitos faltantes (mods necesarios que no están instalados).
+  - Incompatibilidades detectadas por LOOT.
+  - Advertencias y mensajes de LOOT para plugins individuales.
+- **Coincidencia difusa de nombres** (umbral del 82 %) para emparejar mods aunque varíen
+  en sufijo de versión o extensión de plugin (`.esp` / `.esm` / `.esl`).
+- **Caché local SQLite** para no repetir consultas a la API innecesariamente.
+- **Panel de detalle con pestañas**: Resumen, Descripción (con limpieza de BBCode) y
+  Requisitos en tabla.
+- **Informe de compatibilidad**: resumen estadístico con totales de mods, mods habilitados,
+  requisitos faltantes e incompatibilidades.
+- **Botón "Abrir en Nexus Mods"** para ir directo a la página de cada mod.
+- **Tema oscuro** gracias a [sv-ttk](https://github.com/rdbende/Sun-Valley-ttk-theme).
 
-## Requisitos Previos
-
-- Python 3.10 o superior
-- Tkinter (incluido en la mayoría de distribuciones de Python)
+---
 
 ## Instalación
 
+### Opción A — Ejecutable para Windows
+
+1. Ve a la sección [Releases](../../releases) de este repositorio.
+2. Descarga el archivo `AppNexus.exe`.
+3. Ejecuta `AppNexus.exe` — no requiere instalar Python ni dependencias.
+
+### Opción B — Desde el código fuente
+
+Requiere **Python 3.10+**.
+
 ```bash
-# Clonar el repositorio
+# 1. Clona el repositorio
 git clone https://github.com/FacundoSu1986/App-nexus.git
 cd App-nexus
 
-# Instalar dependencias
+# 2. Instala las dependencias
 pip install -r requirements.txt
-```
 
-## Uso
-
-```bash
+# 3. Ejecuta la aplicación
 python main.py
 ```
 
-1. Ingresá tu clave API de Nexus Mods y hacé clic en **Validar Clave**.
-2. Seleccioná tu archivo `modlist.txt` de MO2 usando **Explorar…** y hacé clic en **Cargar Mods**.
-3. Hacé clic en **Sincronizar Nexus** para descargar los datos de cada mod.
-4. Hacé clic en **Analizar** para ver el reporte de compatibilidad.
-5. Opcionalmente, hacé clic en **Actualizar LOOT** para descargar el masterlist de LOOT.
+> **Compilar el ejecutable (opcional):**
+>
+> ```bash
+> pyinstaller build/app_nexus.spec
+> ```
+>
+> El archivo resultante se genera en `dist/AppNexus.exe`.
 
-## Estructura del Proyecto
+---
 
-```
-App-nexus/
-├── main.py                  # Punto de entrada de la aplicación
-├── src/
-│   ├── analyzer/            # Motor de análisis de compatibilidad
-│   ├── database/            # Gestor de base de datos SQLite
-│   ├── gui/                 # Interfaz gráfica (Tkinter)
-│   ├── loot/                # Parser del masterlist de LOOT
-│   ├── mo2/                 # Lector de perfiles de Mod Organizer 2
-│   └── nexus/               # Cliente de la API de Nexus Mods
-├── tests/                   # Tests unitarios (pytest)
-├── build/                   # Configuración de PyInstaller
-└── requirements.txt         # Dependencias de Python
-```
+## Uso paso a paso
 
-## Tests
+1. **Obtén tu API Key de Nexus Mods** (ver sección siguiente).
+2. **Abre App-nexus** (`AppNexus.exe` o `python main.py`).
+3. **Ingresa tu API Key** en el campo correspondiente de la barra de herramientas.
+4. **Selecciona la carpeta de Mod Organizer 2** con el botón de ruta de MO2.
+5. **Elige el perfil** de MO2 que deseas analizar.
+6. **Presiona "Sincronizar"** para que la aplicación:
+   - Lea la lista de mods y el orden de plugins de MO2.
+   - Consulte la API de Nexus Mods para cada mod.
+   - Descargue y procese la masterlist de LOOT.
+   - Analice compatibilidad y genere el informe.
+7. **Revisa los resultados**:
+   - En el panel izquierdo, navega la lista de mods.
+   - En el panel derecho, explora las pestañas *Resumen*, *Descripción* y *Requisitos*.
+   - En el panel inferior, consulta el informe de compatibilidad con las dependencias
+     faltantes, incompatibilidades y advertencias.
 
-```bash
-python -m pytest tests/ -v
-```
+---
 
-## Build
+## Cómo obtener tu API Key de Nexus Mods
 
-Para crear un ejecutable independiente:
+1. Inicia sesión en [nexusmods.com](https://www.nexusmods.com/).
+2. Ve a **Mi cuenta → Pestaña API**:
+   <https://www.nexusmods.com/users/myaccount?tab=api>
+3. En la sección **Personal API Key**, haz clic en **"Request an API Key"**.
+4. Copia la clave generada y pégala en App-nexus.
 
-```bash
-pyinstaller build/app_nexus.spec
-```
+> La clave personal es gratuita y permite **100 solicitudes por día**.
+
+---
+
+## Créditos
+
+- **Datos de masterlist**: proporcionados por el proyecto
+  [LOOT](https://loot.github.io/) bajo licencia
+  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+- **Tema visual**: [Sun Valley ttk theme](https://github.com/rdbende/Sun-Valley-ttk-theme)
+  por rdbende.
+
+---
 
 ## Licencia
 
-Los datos del masterlist de LOOT se proporcionan bajo licencia [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) por [loot.github.io](https://loot.github.io/).
+Este proyecto se distribuye bajo la licencia **MIT**. Consulta el archivo [LICENSE](LICENSE)
+para más detalles.
