@@ -1,7 +1,0 @@
-Defaulting to user installation because normal site-packages is not writeable
-Collecting sv-ttk
-  Downloading sv_ttk-2.6.1-py3-none-any.whl.metadata (4.9 kB)
-Downloading sv_ttk-2.6.1-py3-none-any.whl (50 kB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 50.1/50.1 kB 6.5 MB/s eta 0:00:00
-Installing collected packages: sv-ttk
-Successfully installed sv-ttk-2.6.1
