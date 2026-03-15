@@ -14,6 +14,17 @@ from src.ai.local_agent import (
 )
 
 
+class TestSystemPrompt:
+    def test_prompt_asks_for_all_categories(self):
+        assert "requirements" in _SYSTEM_PROMPT
+        assert "patches" in _SYSTEM_PROMPT
+        assert "known_issues" in _SYSTEM_PROMPT
+        assert "load_order" in _SYSTEM_PROMPT
+        assert "Hard dependencies" in _SYSTEM_PROMPT
+        assert "incompatibilities" in _SYSTEM_PROMPT
+        assert "load-order recommendations" in _SYSTEM_PROMPT
+
+
 class TestBuildUserPrompt:
     def test_includes_all_sections(self):
         data = {
@@ -44,20 +55,27 @@ class TestParseResponse:
             "requirements": ["SKSE64", "SkyUI"],
             "patches": ["Compatibility Patch"],
             "known_issues": ["Crashes with ENB"],
+            "load_order": ["Load after USSEP"],
         })
         result = _parse_response(raw)
         assert result["requirements"] == ["SKSE64", "SkyUI"]
         assert result["patches"] == ["Compatibility Patch"]
         assert result["known_issues"] == ["Crashes with ENB"]
+        assert result["load_order"] == ["Load after USSEP"]
 
     def test_json_with_code_fences(self):
-        raw = '```json\n{"requirements": ["A"], "patches": [], "known_issues": []}\n```'
+        raw = '```json\n{"requirements": ["A"], "patches": [], "known_issues": [], "load_order": []}\n```'
         result = _parse_response(raw)
         assert result["requirements"] == ["A"]
 
     def test_invalid_json_returns_defaults(self):
         result = _parse_response("This is not JSON at all")
-        assert result == {"requirements": [], "patches": [], "known_issues": []}
+        assert result == {
+            "requirements": [],
+            "patches": [],
+            "known_issues": [],
+            "load_order": [],
+        }
 
     def test_partial_keys(self):
         raw = json.dumps({"requirements": ["SKSE64"]})
@@ -65,6 +83,7 @@ class TestParseResponse:
         assert result["requirements"] == ["SKSE64"]
         assert result["patches"] == []
         assert result["known_issues"] == []
+        assert result["load_order"] == []
 
 
 class TestAnalyseMod:
@@ -77,6 +96,7 @@ class TestAnalyseMod:
                     "requirements": ["SKSE64"],
                     "patches": [],
                     "known_issues": ["May crash on load"],
+                    "load_order": ["Load after USSEP"],
                 })
             }
         }
@@ -87,6 +107,7 @@ class TestAnalyseMod:
 
         assert result["requirements"] == ["SKSE64"]
         assert result["known_issues"] == ["May crash on load"]
+        assert result["load_order"] == ["Load after USSEP"]
         mock_ollama.chat.assert_called_once()
 
     @patch("src.ai.local_agent._import_ollama")

@@ -18,13 +18,22 @@ DEFAULT_MODEL = "llama3"
 
 _SYSTEM_PROMPT = (
     "You are a Skyrim mod compatibility analyst.  Given the raw HTML/text "
-    "from a Nexus Mods page, extract:\n"
-    "1. requirements — a JSON list of mod names that this mod requires.\n"
-    "2. patches — a JSON list of compatibility patches mentioned.\n"
-    "3. known_issues — a JSON list of known issues or incompatibilities "
-    "reported by users.\n\n"
+    "from a Nexus Mods page, extract the following four categories:\n\n"
+    "1. requirements — Hard dependencies: mod names that MUST be installed "
+    "for this mod to work (e.g. SKSE64, SkyUI, Address Library).  "
+    "Include every mod listed in the Requirements tab or description.\n\n"
+    "2. patches — Recommended compatibility patches between this mod and "
+    "other mods (e.g. 'Mod X - Mod Y Compatibility Patch').  Include the "
+    "names of both mods involved if possible.\n\n"
+    "3. known_issues — Known incompatibilities or conflicts reported by "
+    "users or the mod author (e.g. 'Incompatible with Mod Z', 'CTD when "
+    "used with ENB').  Include specifics when available.\n\n"
+    "4. load_order — Any load-order recommendations mentioned by the author "
+    "or users (e.g. 'Load after USSEP', 'Place near bottom of load order')."
+    "\n\n"
     "Respond ONLY with valid JSON in this exact format:\n"
-    '{"requirements": [], "patches": [], "known_issues": []}\n'
+    '{"requirements": [], "patches": [], "known_issues": [], '
+    '"load_order": []}\n'
     "Do NOT include any explanation or markdown."
 )
 
@@ -66,7 +75,12 @@ def _build_user_prompt(page_data: dict) -> str:
 
 def _parse_response(raw: str) -> dict:
     """Best-effort parse of the model response into our expected schema."""
-    default = {"requirements": [], "patches": [], "known_issues": []}
+    default = {
+        "requirements": [],
+        "patches": [],
+        "known_issues": [],
+        "load_order": [],
+    }
     try:
         # Strip markdown code fences if present
         cleaned = raw.strip()
@@ -81,6 +95,7 @@ def _parse_response(raw: str) -> dict:
             "requirements": data.get("requirements", []),
             "patches": data.get("patches", []),
             "known_issues": data.get("known_issues", []),
+            "load_order": data.get("load_order", []),
         }
     except (json.JSONDecodeError, AttributeError):
         logger.warning("Could not parse Ollama response as JSON: %s", raw[:200])
@@ -104,7 +119,8 @@ def analyse_mod(
     Returns
     -------
     dict
-        ``{"requirements": [...], "patches": [...], "known_issues": [...]}``
+        ``{"requirements": [...], "patches": [...], "known_issues": [...],
+        "load_order": [...]}``
     """
     ollama = _import_ollama()
 
