@@ -5,9 +5,39 @@ Displays the full information about a single mod that was selected in the main
 mod list, including its description and requirements.
 """
 
+import re
 import tkinter as tk
 from tkinter import ttk
 import webbrowser
+
+
+def clean_bbcode(text: str) -> str:
+    """Strip BBCode / HTML markup and return plain text."""
+    # Convert <br> / <br/> / <br /> to newlines
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+
+    # Remove [img]...[/img] entirely
+    text = re.sub(r"\[img\].*?\[/img\]", "", text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Remove [youtube]...[/youtube] entirely
+    text = re.sub(
+        r"\[youtube\].*?\[/youtube\]", "", text, flags=re.IGNORECASE | re.DOTALL
+    )
+
+    # Convert [url=...]text[/url] -> text
+    text = re.sub(
+        r"\[url=[^\]]*\](.*?)\[/url\]", r"\1", text, flags=re.IGNORECASE | re.DOTALL
+    )
+
+    # Remove simple BBCode tags (opening and closing)
+    text = re.sub(
+        r"\[/?(b|i|u|center|size|color|font)(=[^\]]*)?\]",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    return text
 
 
 class ModDetailFrame(ttk.Frame):
@@ -114,7 +144,9 @@ class ModDetailFrame(ttk.Frame):
         self._set_text(self._tab_summary, mod.get("summary", "No summary available."))
         self._set_text(
             self._tab_description,
-            mod.get("description", "No description cached. Try syncing this mod."),
+            clean_bbcode(
+                mod.get("description", "No description cached. Try syncing this mod.")
+            ),
         )
 
         if db is not None:
