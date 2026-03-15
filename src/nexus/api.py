@@ -42,6 +42,10 @@ class NexusAPIError(Exception):
 class NexusAPI:
     """Thin wrapper around the Nexus Mods v1 REST API."""
 
+    _PATCH_PATTERN = re.compile(
+        r"\bpatch\b|\bfix\b|\bcompat", re.IGNORECASE
+    )
+
     def __init__(self, api_key: str, game_domain: str = SKYRIM_SE_DOMAIN) -> None:
         if not api_key:
             raise ValueError("An API key is required.")
@@ -152,9 +156,7 @@ class NexusAPI:
                     f"https://www.nexusmods.com/{self.game_domain}/mods/{req_mod_id}"
                     if req_mod_id else ""
                 ),
-                "is_patch": bool(
-                    re.search(r"\bpatch\b|\bfix\b|\bcompat", name, re.IGNORECASE)
-                ),
+                "is_patch": bool(self._PATCH_PATTERN.search(name)),
             })
         return normalized
 
