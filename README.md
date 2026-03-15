@@ -1,6 +1,15 @@
 # App-nexus — Skyrim Mod Compatibility Manager
 
 **App-nexus** es un gestor de compatibilidad de mods para **Skyrim Special Edition**.
+...descripción...
+
+> 💡 *Proyecto hobby creado por un apasionado de Skyrim con ayuda de IAs 
+> (Claude, GitHub Copilot, Gemini, Kimi). ¡Contribuciones bienvenidas!*
+
+---
+
+
+**App-nexus** es un gestor de compatibilidad de mods para **Skyrim Special Edition**.
 Lee tu lista de mods de **Mod Organizer 2**, consulta la API de **Nexus Mods** y cruza los
 datos con la **masterlist de LOOT** para detectar dependencias faltantes,
 incompatibilidades y advertencias — todo desde una interfaz gráfica sencilla con tema oscuro.
