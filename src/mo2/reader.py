@@ -242,7 +242,7 @@ class MO2Reader:
             Optional path to the MO2 *mods* directory.  When provided, each
             mod's ``.esp``/``.esm``/``.esl`` plugins are scanned for MAST
             records and the results are stored in
-            :pyattr:`InstalledMod.esp_masters`.
+            :py:attr:`InstalledMod.esp_masters`.
         """
         folder = Path(mods_folder) if mods_folder else None
         mods = cls._read_modlist(Path(modlist_path), mods_folder=folder)
