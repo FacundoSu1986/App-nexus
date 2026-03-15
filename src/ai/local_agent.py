@@ -160,8 +160,11 @@ _MAX_TOOL_ROUNDS = 5
 
 def _build_db_context(db) -> str:
     """Build a summary of the local mod database for the system prompt."""
+    if not hasattr(db, "get_all_mods"):
+        logger.debug("db object has no get_all_mods(); skipping DB context.")
+        return ""
     try:
-        mods = db.get_all_mods() if hasattr(db, "get_all_mods") else []
+        mods = db.get_all_mods()
         if not mods:
             return ""
         lines = ["The user's local mod database contains these mods:"]
@@ -171,7 +174,8 @@ def _build_db_context(db) -> str:
                 line += f" (v{m['version']})"
             lines.append(line)
         return "\n".join(lines)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to build DB context: %s", exc)
         return ""
 
 
@@ -247,6 +251,9 @@ def chat(
                 tools=OLLAMA_TOOLS,
             )
         except Exception as exc:
+            # Ollama raises a generic error whose message contains "tool"
+            # when the model doesn't support function calling.  Re-raise
+            # any other errors so they aren't silently swallowed.
             if "tool" not in str(exc).lower():
                 raise
             logger.warning(
