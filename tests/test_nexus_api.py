@@ -2,6 +2,7 @@
 
 import pytest
 import responses as responses_lib
+from requests.exceptions import ConnectionError as RequestsConnectionError, Timeout
 
 from src.nexus.api import NexusAPI, NexusAPIError, RateLimitError, BASE_URL, SKYRIM_SE_DOMAIN
 
@@ -133,15 +134,43 @@ class TestValidateKey:
         assert info["name"] == "Tester"
 
 
+class TestErrorHandling:
+    @responses_lib.activate
+    def test_timeout_raises_nexus_api_error(self, api):
+        url = f"{BASE_URL}/users/validate.json"
+        responses_lib.add(
+            responses_lib.GET,
+            url,
+            body=Timeout("Connection timed out"),
+        )
+        with pytest.raises(NexusAPIError, match="timed out"):
+            api.validate_api_key()
+
+    @responses_lib.activate
+    def test_connection_error_raises_nexus_api_error(self, api):
+        url = f"{BASE_URL}/users/validate.json"
+        responses_lib.add(
+            responses_lib.GET,
+            url,
+            body=RequestsConnectionError("DNS resolution failed"),
+        )
+        with pytest.raises(NexusAPIError, match="Network error"):
+            api.validate_api_key()
+
+
 class TestNormalisation:
-    def test_normalise_mod_fields(self):
-        normalised = NexusAPI._normalise_mod(SAMPLE_MOD)
+    def test_normalise_mod_fields(self, api):
+        normalised = api._normalise_mod(SAMPLE_MOD)
         assert normalised["mod_id"] == SAMPLE_MOD["mod_id"]
         assert normalised["downloads"] == SAMPLE_MOD["mod_downloads"]
         assert normalised["endorsements"] == SAMPLE_MOD["endorsement_count"]
         assert normalised["last_updated"] != ""
 
-    def test_normalise_search_result(self):
+    def test_normalise_mod_uses_game_domain(self, api):
+        normalised = api._normalise_mod(SAMPLE_MOD)
+        assert f"/{SKYRIM_SE_DOMAIN}/mods/" in normalised["mod_url"]
+
+    def test_normalise_search_result(self, api):
         raw = {
             "mod_id": 100,
             "name": "Some Mod",
@@ -151,7 +180,8 @@ class TestNormalisation:
             "downloads": 200,
             "endorsements": 10,
         }
-        normalised = NexusAPI._normalise_search_result(raw)
+        normalised = api._normalise_search_result(raw)
         assert normalised["mod_id"] == 100
         assert normalised["author"] == "author_name"
         assert normalised["summary"] == "A short description"
+        assert f"/{SKYRIM_SE_DOMAIN}/mods/" in normalised["mod_url"]
