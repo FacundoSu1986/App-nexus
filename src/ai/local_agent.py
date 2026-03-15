@@ -387,6 +387,6 @@ def chat(
             if hasattr(fallback_response, "message"):
                 return fallback_response.message.content, history
             return fallback_response["message"]["content"], history
-        except Exception as e2:
-            logger.error("Fallback also failed: %s", e2)
-            return f"Error processing query: {e2}", history
+        except Exception as fallback_error:
+            logger.error("Fallback also failed: %s", fallback_error)
+            return f"Error processing query: {fallback_error}", history
