@@ -62,8 +62,8 @@ class TestComputeModStatuses:
         profile = _make_profile([("ModA", True), ("ModB", True)])
         report = _empty_report(profile)
         result = compute_mod_statuses(report, profile.mods)
-        assert result["ModA"] == "\U0001f7e2 OK"
-        assert result["ModB"] == "\U0001f7e2 OK"
+        assert result["ModA"] == "\u2714 OK"
+        assert result["ModB"] == "\u2714 OK"
 
     def test_red_for_missing_required_dependency(self):
         profile = _make_profile([("SkyUI", True)])
@@ -72,7 +72,7 @@ class TestComputeModStatuses:
             {"mod_name": "SkyUI", "required_name": "SKSE64", "is_patch": False}
         )
         result = compute_mod_statuses(report, profile.mods)
-        assert result["SkyUI"] == "\U0001f534 ERROR"
+        assert result["SkyUI"] == "\u2718 ERROR"
 
     def test_yellow_for_missing_optional_patch(self):
         profile = _make_profile([("ModA", True)])
@@ -81,7 +81,7 @@ class TestComputeModStatuses:
             {"mod_name": "ModA", "required_name": "ModA-Patch", "is_patch": True}
         )
         result = compute_mod_statuses(report, profile.mods)
-        assert result["ModA"] == "\U0001f7e1 WARN"
+        assert result["ModA"] == "\u26a0 WARN"
 
     def test_red_overrides_yellow(self):
         """If a mod has both a missing patch and a missing required dep,
@@ -93,7 +93,7 @@ class TestComputeModStatuses:
             {"mod_name": "ModA", "required_name": "Core", "is_patch": False},
         ])
         result = compute_mod_statuses(report, profile.mods)
-        assert result["ModA"] == "\U0001f534 ERROR"
+        assert result["ModA"] == "\u2718 ERROR"
 
     def test_disabled_mods_not_in_result(self):
         """Disabled mods should not appear in the statuses dict."""
@@ -113,7 +113,7 @@ class TestComputeModStatuses:
             {"mod_name": "USSEP.esp", "incompatible_with": "Conflict.esp"}
         )
         result = compute_mod_statuses(report, profile.mods)
-        assert result["USSEP"] == "\U0001f534 ERROR"
+        assert result["USSEP"] == "\u2718 ERROR"
 
     def test_loot_warning_maps_to_yellow(self):
         profile = _make_profile(
@@ -125,7 +125,7 @@ class TestComputeModStatuses:
             {"mod_name": "USSEP.esp", "message": "Needs update"}
         )
         result = compute_mod_statuses(report, profile.mods)
-        assert result["USSEP"] == "\U0001f7e1 WARN"
+        assert result["USSEP"] == "\u26a0 WARN"
 
     def test_mixed_statuses(self):
         """Multiple mods with different status levels."""
@@ -141,9 +141,9 @@ class TestComputeModStatuses:
             {"mod_name": "BadMod", "required_name": "CoreDep", "is_patch": False},
         ])
         result = compute_mod_statuses(report, profile.mods)
-        assert result["GoodMod"] == "\U0001f7e2 OK"
-        assert result["WarnMod"] == "\U0001f7e1 WARN"
-        assert result["BadMod"] == "\U0001f534 ERROR"
+        assert result["GoodMod"] == "\u2714 OK"
+        assert result["WarnMod"] == "\u26a0 WARN"
+        assert result["BadMod"] == "\u2718 ERROR"
         assert "OffMod" not in result
 
 
@@ -183,8 +183,8 @@ class TestAnalyseIntegration:
         analyser = CompatibilityAnalyzer(db)
         report = analyser.analyse(profile)
         statuses = compute_mod_statuses(report, profile.mods)
-        assert statuses["SkyUI"] == "\U0001f7e2 OK"
-        assert statuses["SKSE64"] == "\U0001f7e2 OK"
+        assert statuses["SkyUI"] == "\u2714 OK"
+        assert statuses["SKSE64"] == "\u2714 OK"
 
     def test_red_when_requirement_missing(self, db):
         db.upsert_mod({"mod_id": 2, "name": "SkyUI", "summary": "",
@@ -196,7 +196,7 @@ class TestAnalyseIntegration:
         analyser = CompatibilityAnalyzer(db)
         report = analyser.analyse(profile)
         statuses = compute_mod_statuses(report, profile.mods)
-        assert statuses["SkyUI"] == "\U0001f534 ERROR"
+        assert statuses["SkyUI"] == "\u2718 ERROR"
 
     def test_yellow_when_patch_missing(self, db):
         db.upsert_mod({"mod_id": 3, "name": "ModA", "summary": "",
@@ -208,7 +208,7 @@ class TestAnalyseIntegration:
         analyser = CompatibilityAnalyzer(db)
         report = analyser.analyse(profile)
         statuses = compute_mod_statuses(report, profile.mods)
-        assert statuses["ModA"] == "\U0001f7e1 WARN"
+        assert statuses["ModA"] == "\u26a0 WARN"
 
     def test_loot_incompatibility_status(self, db):
         db.conn.execute(
@@ -223,7 +223,7 @@ class TestAnalyseIntegration:
         analyser = CompatibilityAnalyzer(db)
         report = analyser.analyse(profile)
         statuses = compute_mod_statuses(report, profile.mods)
-        assert statuses["USSEP"] == "\U0001f534 ERROR"
+        assert statuses["USSEP"] == "\u2718 ERROR"
 
     def test_loot_warning_status(self, db):
         db.conn.execute(
@@ -238,7 +238,7 @@ class TestAnalyseIntegration:
         analyser = CompatibilityAnalyzer(db)
         report = analyser.analyse(profile)
         statuses = compute_mod_statuses(report, profile.mods)
-        assert statuses["USSEP"] == "\U0001f7e1 WARN"
+        assert statuses["USSEP"] == "\u26a0 WARN"
 
 
 # ---------------------------------------------------------------------------
@@ -277,9 +277,9 @@ class TestPopulateModListStatuses:
             mod.name: self._status_column(mod, statuses)
             for mod in profile.mods
         }
-        assert results["GoodMod"] == "\U0001f7e2 OK"
-        assert results["WarnMod"] == "\U0001f7e1 WARN"
-        assert results["BadMod"] == "\U0001f534 ERROR"
+        assert results["GoodMod"] == "\u2714 OK"
+        assert results["WarnMod"] == "\u26a0 WARN"
+        assert results["BadMod"] == "\u2718 ERROR"
         assert results["DisabledMod"] == "\u2718 OFF"
         # No mod should show the plain "✔ ON" fallback
         assert "\u2714 ON" not in results.values()

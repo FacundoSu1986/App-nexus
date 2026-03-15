@@ -174,9 +174,9 @@ class CompatibilityAnalyzer:
 # Traffic-light status helpers
 # ---------------------------------------------------------------------------
 
-_STATUS_OK = "🟢 OK"
-_STATUS_WARN = "🟡 WARN"
-_STATUS_ERROR = "🔴 ERROR"
+_STATUS_OK = "✔ OK"
+_STATUS_WARN = "⚠ WARN"
+_STATUS_ERROR = "✘ ERROR"
 
 _SEVERITY_LABELS = {0: _STATUS_OK, 1: _STATUS_WARN, 2: _STATUS_ERROR}
 
@@ -208,8 +208,8 @@ def compute_mod_statuses(
     Returns
     -------
     dict[str, str]
-        Mapping of mod name → status string (``"🟢 OK"``, ``"🟡 WARN"``
-        or ``"🔴 ERROR"``).  Only **enabled** mods are included.
+        Mapping of mod name → status string (``"✔ OK"``, ``"⚠ WARN"``
+        or ``"✘ ERROR"``).  Only **enabled** mods are included.
     """
     # severity per mod: 0 = OK, 1 = WARN, 2 = ERROR
     severity: dict[str, int] = {}
