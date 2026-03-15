@@ -7,6 +7,7 @@ from src.loot.masterlist import (
     MASTERLIST_URL,
     parse_masterlist,
     save_to_database,
+    clean_loot_message,
     _extract_requirements,
     _extract_incompatibilities,
     _extract_messages,
@@ -164,6 +165,44 @@ class TestExtractMessages:
 
     def test_non_list_returns_empty(self):
         assert _extract_messages({"msg": "single_string"}) == []
+
+
+class TestCleanLootMessage:
+    def test_single_placeholder_replaced(self):
+        assert clean_loot_message("Contains %1% ITM records.") == \
+            "Contains [see Nexus page] ITM records."
+
+    def test_multiple_placeholders_replaced(self):
+        result = clean_loot_message("Use %1% to clean %2% records.")
+        assert "%1%" not in result
+        assert "%2%" not in result
+        assert result == "Use [see Nexus page] to clean [see Nexus page] records."
+
+    def test_no_placeholder_unchanged(self):
+        assert clean_loot_message("No placeholders here.") == "No placeholders here."
+
+    def test_empty_string(self):
+        assert clean_loot_message("") == ""
+
+    def test_only_placeholder(self):
+        assert clean_loot_message("%1%") == "[see Nexus page]"
+
+    def test_adjacent_placeholders_no_double_space(self):
+        result = clean_loot_message("%1% %2%")
+        assert result == "[see Nexus page] [see Nexus page]"
+
+    def test_extract_messages_cleans_placeholders(self):
+        """Verify _extract_messages applies cleaning."""
+        plugin = {"msg": ["Contains %1% ITM records."]}
+        msgs = _extract_messages(plugin)
+        assert "%1%" not in msgs[0]
+        assert "[see Nexus page]" in msgs[0]
+
+    def test_extract_messages_cleans_dict_form(self):
+        plugin = {"msg": [{"type": "warn", "content": "Needs %1%"}]}
+        msgs = _extract_messages(plugin)
+        assert "%1%" not in msgs[0]
+        assert "[see Nexus page]" in msgs[0]
 
 
 # ---------------------------------------------------------------------------

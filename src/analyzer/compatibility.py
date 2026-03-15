@@ -47,6 +47,8 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 from typing import TYPE_CHECKING
 
+from src.loot.masterlist import clean_loot_message
+
 if TYPE_CHECKING:
     from src.database.manager import DatabaseManager
     from src.mo2.reader import MO2Profile
@@ -146,7 +148,7 @@ class CompatibilityAnalyzer:
             for msg in loot_entry.get("msg", []):
                 loot_warnings.append({
                     "mod_name": plugin_name,
-                    "message": msg,
+                    "message": clean_loot_message(msg),
                 })
 
         missing_patches = sum(
