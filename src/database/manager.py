@@ -101,6 +101,15 @@ class DatabaseManager:
                 inc             TEXT NOT NULL DEFAULT '[]',   -- JSON list of incompatible plugins
                 msg             TEXT NOT NULL DEFAULT '[]'    -- JSON list of messages
             );
+
+            CREATE TABLE IF NOT EXISTS ai_mod_analysis (
+                nexus_id        TEXT PRIMARY KEY,
+                requirements    TEXT NOT NULL DEFAULT '[]',   -- JSON list
+                patches         TEXT NOT NULL DEFAULT '[]',   -- JSON list
+                known_issues    TEXT NOT NULL DEFAULT '[]',   -- JSON list
+                analyzed_by     TEXT NOT NULL DEFAULT '',      -- 'ollama' or 'claude'
+                last_analyzed   TEXT NOT NULL DEFAULT ''       -- ISO timestamp
+            );
             """
         )
         self.conn.commit()
@@ -302,3 +311,59 @@ class DatabaseManager:
             entry["msg"] = json.loads(entry["msg"])
             result.append(entry)
         return result
+
+    # ------------------------------------------------------------------
+    # AI mod analysis
+    # ------------------------------------------------------------------
+
+    def upsert_ai_analysis(self, analysis: dict) -> None:
+        """Insert or replace an AI mod analysis record."""
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO ai_mod_analysis
+                    (nexus_id, requirements, patches, known_issues,
+                     analyzed_by, last_analyzed)
+                VALUES
+                    (:nexus_id, :requirements, :patches, :known_issues,
+                     :analyzed_by, :last_analyzed)
+                ON CONFLICT(nexus_id) DO UPDATE SET
+                    requirements  = excluded.requirements,
+                    patches       = excluded.patches,
+                    known_issues  = excluded.known_issues,
+                    analyzed_by   = excluded.analyzed_by,
+                    last_analyzed = excluded.last_analyzed
+                """,
+                {
+                    "nexus_id": str(analysis["nexus_id"]),
+                    "requirements": json.dumps(analysis.get("requirements", [])),
+                    "patches": json.dumps(analysis.get("patches", [])),
+                    "known_issues": json.dumps(analysis.get("known_issues", [])),
+                    "analyzed_by": analysis.get("analyzed_by", ""),
+                    "last_analyzed": analysis.get(
+                        "last_analyzed",
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                },
+            )
+            self.conn.commit()
+        except sqlite3.Error as exc:
+            logger.error(
+                "SQL error upserting AI analysis for %s: %s",
+                analysis.get("nexus_id"),
+                exc,
+            )
+            raise
+
+    def get_ai_analysis(self, nexus_id: str) -> Optional[dict]:
+        """Fetch an AI analysis record by nexus_id."""
+        row = self.conn.execute(
+            "SELECT * FROM ai_mod_analysis WHERE nexus_id = ?", (str(nexus_id),)
+        ).fetchone()
+        if row is None:
+            return None
+        entry = dict(row)
+        entry["requirements"] = json.loads(entry["requirements"])
+        entry["patches"] = json.loads(entry["patches"])
+        entry["known_issues"] = json.loads(entry["known_issues"])
+        return entry
