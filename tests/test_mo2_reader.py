@@ -112,6 +112,34 @@ class TestFromFiles:
         profile = MO2Reader.from_files(str(modlist))
         assert profile.load_order == []
 
+    def test_auto_detect_plugins_in_same_directory(self, tmp_path):
+        """Simulate the GUI auto-detection: look for plugins.txt next to modlist.txt."""
+        modlist = tmp_path / "modlist.txt"
+        plugins = tmp_path / "plugins.txt"
+        write_file(modlist, "+ModA\n+ModB\n")
+        write_file(plugins, "*ModA.esp\n*ModB.esp\n")
+
+        plugins_path = modlist.parent / "plugins.txt"
+        profile = MO2Reader.from_files(
+            modlist_path=str(modlist),
+            plugins_path=str(plugins_path) if plugins_path.exists() else None,
+        )
+        assert len(profile.mods) == 2
+        assert profile.load_order == ["ModA.esp", "ModB.esp"]
+
+    def test_auto_detect_plugins_missing(self, tmp_path):
+        """When plugins.txt does not exist, load_order should be empty."""
+        modlist = tmp_path / "modlist.txt"
+        write_file(modlist, "+ModA\n")
+
+        plugins_path = modlist.parent / "plugins.txt"
+        profile = MO2Reader.from_files(
+            modlist_path=str(modlist),
+            plugins_path=str(plugins_path) if plugins_path.exists() else None,
+        )
+        assert len(profile.mods) == 1
+        assert profile.load_order == []
+
 
 # ---------------------------------------------------------------------------
 # MO2Profile helpers
