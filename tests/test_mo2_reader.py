@@ -119,11 +119,9 @@ class TestFromFiles:
         write_file(modlist, "+ModA\n+ModB\n")
         write_file(plugins, "*ModA.esp\n*ModB.esp\n")
 
-        modlist_path = Path(str(modlist))
-        plugins_path = modlist_path.parent / "plugins.txt"
-
+        plugins_path = modlist.parent / "plugins.txt"
         profile = MO2Reader.from_files(
-            modlist_path=str(modlist_path),
+            modlist_path=str(modlist),
             plugins_path=str(plugins_path) if plugins_path.exists() else None,
         )
         assert len(profile.mods) == 2
@@ -134,11 +132,9 @@ class TestFromFiles:
         modlist = tmp_path / "modlist.txt"
         write_file(modlist, "+ModA\n")
 
-        modlist_path = Path(str(modlist))
-        plugins_path = modlist_path.parent / "plugins.txt"
-
+        plugins_path = modlist.parent / "plugins.txt"
         profile = MO2Reader.from_files(
-            modlist_path=str(modlist_path),
+            modlist_path=str(modlist),
             plugins_path=str(plugins_path) if plugins_path.exists() else None,
         )
         assert len(profile.mods) == 1
