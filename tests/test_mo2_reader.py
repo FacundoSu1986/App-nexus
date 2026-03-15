@@ -1,5 +1,6 @@
 """Tests for MO2Reader."""
 
+import struct
 import textwrap
 from pathlib import Path
 
@@ -15,6 +16,29 @@ from src.mo2.reader import MO2Reader, MO2Profile, InstalledMod
 def write_file(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(textwrap.dedent(content), encoding="utf-8")
+
+
+def _build_subrecord(sub_type: bytes, payload: bytes) -> bytes:
+    """Build a single TES4 subrecord: type(4) + size(2) + data."""
+    return sub_type + struct.pack("<H", len(payload)) + payload
+
+
+def _build_esp(subrecords: bytes, flags: int = 0) -> bytes:
+    """Build a minimal ESP binary with a TES4 record wrapping *subrecords*.
+
+    The returned bytes start with a 24-byte TES4 record header followed by
+    the subrecord data.
+    """
+    # TES4 header: type(4) + datasize(4) + flags(4) + formid(4) + vc(4)
+    #   + formver(2) + unk(2)
+    header = b"TES4"
+    header += struct.pack("<I", len(subrecords))   # data size
+    header += struct.pack("<I", flags)              # flags
+    header += b"\x00" * 4                           # form id
+    header += b"\x00" * 4                           # version control
+    header += b"\x00" * 2                           # form version
+    header += b"\x00" * 2                           # unknown
+    return header + subrecords
 
 
 # ---------------------------------------------------------------------------
@@ -317,3 +341,183 @@ class TestInstanceDiscovery:
         assert profile.profile_name == "Default"
         assert len(profile.mods) == 2
         assert profile.load_order == ["SKSE64.esm"]
+
+
+# ---------------------------------------------------------------------------
+# read_esp_masters – binary ESP header parsing
+# ---------------------------------------------------------------------------
+
+class TestReadEspMasters:
+    def test_single_master(self, tmp_path):
+        mast = _build_subrecord(b"MAST", b"Skyrim.esm\x00")
+        esp = _build_esp(mast)
+        p = tmp_path / "plugin.esp"
+        p.write_bytes(esp)
+        assert MO2Reader.read_esp_masters(p) == ["Skyrim.esm"]
+
+    def test_multiple_masters(self, tmp_path):
+        subs = (
+            _build_subrecord(b"MAST", b"Skyrim.esm\x00")
+            + _build_subrecord(b"DATA", b"\x00" * 8)
+            + _build_subrecord(b"MAST", b"Update.esm\x00")
+            + _build_subrecord(b"DATA", b"\x00" * 8)
+            + _build_subrecord(b"MAST", b"Dawnguard.esm\x00")
+        )
+        esp = _build_esp(subs)
+        p = tmp_path / "plugin.esp"
+        p.write_bytes(esp)
+        assert MO2Reader.read_esp_masters(p) == [
+            "Skyrim.esm", "Update.esm", "Dawnguard.esm",
+        ]
+
+    def test_no_masters(self, tmp_path):
+        """A plugin with only a HEDR subrecord and no MAST entries."""
+        subs = _build_subrecord(b"HEDR", b"\x00" * 12)
+        esp = _build_esp(subs)
+        p = tmp_path / "plugin.esp"
+        p.write_bytes(esp)
+        assert MO2Reader.read_esp_masters(p) == []
+
+    def test_missing_file(self, tmp_path):
+        assert MO2Reader.read_esp_masters(tmp_path / "missing.esp") == []
+
+    def test_file_too_small(self, tmp_path):
+        p = tmp_path / "tiny.esp"
+        p.write_bytes(b"TES4")
+        assert MO2Reader.read_esp_masters(p) == []
+
+    def test_invalid_header_type(self, tmp_path):
+        p = tmp_path / "bad.esp"
+        p.write_bytes(b"NOTATES4HEADERDATA__XXXX")
+        assert MO2Reader.read_esp_masters(p) == []
+
+    def test_esm_extension(self, tmp_path):
+        mast = _build_subrecord(b"MAST", b"Skyrim.esm\x00")
+        esm = _build_esp(mast)
+        p = tmp_path / "plugin.esm"
+        p.write_bytes(esm)
+        assert MO2Reader.read_esp_masters(p) == ["Skyrim.esm"]
+
+    def test_esl_extension(self, tmp_path):
+        mast = _build_subrecord(b"MAST", b"Skyrim.esm\x00")
+        esl = _build_esp(mast, flags=0x200)  # ESL flag
+        p = tmp_path / "plugin.esl"
+        p.write_bytes(esl)
+        assert MO2Reader.read_esp_masters(p) == ["Skyrim.esm"]
+
+    def test_truncated_subrecord_is_safe(self, tmp_path):
+        """If the data block is shorter than expected, parsing stops safely."""
+        mast = _build_subrecord(b"MAST", b"Skyrim.esm\x00")
+        # Intentionally set the TES4 data_size larger than actual data
+        header = b"TES4"
+        header += struct.pack("<I", len(mast) + 100)  # oversized
+        header += b"\x00" * 16  # rest of TES4 header
+        p = tmp_path / "trunc.esp"
+        p.write_bytes(header + mast)
+        # Should still extract what is available
+        assert MO2Reader.read_esp_masters(p) == ["Skyrim.esm"]
+
+
+# ---------------------------------------------------------------------------
+# _collect_mod_masters
+# ---------------------------------------------------------------------------
+
+class TestCollectModMasters:
+    def test_collects_from_esp_in_mod_folder(self, tmp_path):
+        mods = tmp_path / "mods"
+        mod_dir = mods / "SomePlugin"
+        mod_dir.mkdir(parents=True)
+        mast = _build_subrecord(b"MAST", b"Skyrim.esm\x00")
+        (mod_dir / "SomePlugin.esp").write_bytes(_build_esp(mast))
+        assert MO2Reader._collect_mod_masters(mods, "SomePlugin") == ["Skyrim.esm"]
+
+    def test_deduplicates_case_insensitive(self, tmp_path):
+        mods = tmp_path / "mods"
+        mod_dir = mods / "MultiPlugin"
+        mod_dir.mkdir(parents=True)
+        # Two plugins both require Skyrim.esm (different case)
+        m1 = _build_subrecord(b"MAST", b"Skyrim.esm\x00")
+        m2 = _build_subrecord(b"MAST", b"skyrim.esm\x00")
+        (mod_dir / "A.esp").write_bytes(_build_esp(m1))
+        (mod_dir / "B.esp").write_bytes(_build_esp(m2))
+        masters = MO2Reader._collect_mod_masters(mods, "MultiPlugin")
+        # Should keep only one (first encountered)
+        assert len(masters) == 1
+
+    def test_missing_mod_folder(self, tmp_path):
+        assert MO2Reader._collect_mod_masters(tmp_path / "mods", "Ghost") == []
+
+
+# ---------------------------------------------------------------------------
+# Integration: _read_modlist populates esp_masters
+# ---------------------------------------------------------------------------
+
+class TestReadModlistWithEspMasters:
+    def _setup_mo2_with_plugins(self, tmp_path, mods_meta: dict):
+        """Create an MO2-like directory structure with ESP files.
+
+        ``mods_meta`` maps mod name → dict with optional modid/version
+        and ``masters`` (list of master names to embed).
+        Returns path to modlist.txt.
+        """
+        profile_dir = tmp_path / "profiles" / "Default"
+        profile_dir.mkdir(parents=True)
+        mods_dir = tmp_path / "mods"
+        mods_dir.mkdir(exist_ok=True)
+
+        lines = []
+        for name, meta in mods_meta.items():
+            lines.append(f"+{name}")
+            mod_dir = mods_dir / name
+            mod_dir.mkdir(exist_ok=True)
+            # meta.ini
+            ini_lines = ["[General]"]
+            if "modid" in meta:
+                ini_lines.append(f"modid={meta['modid']}")
+            if "version" in meta:
+                ini_lines.append(f"version={meta['version']}")
+            (mod_dir / "meta.ini").write_text(
+                "\n".join(ini_lines) + "\n", encoding="utf-8"
+            )
+            # ESP with masters
+            if "masters" in meta:
+                subs = b""
+                for m in meta["masters"]:
+                    subs += _build_subrecord(b"MAST", m.encode("utf-8") + b"\x00")
+                (mod_dir / f"{name}.esp").write_bytes(_build_esp(subs))
+
+        modlist_path = profile_dir / "modlist.txt"
+        modlist_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return modlist_path
+
+    def test_masters_populated_via_modlist(self, tmp_path):
+        modlist = self._setup_mo2_with_plugins(tmp_path, {
+            "MyMod": {
+                "modid": "100",
+                "version": "1.0",
+                "masters": ["Skyrim.esm", "Update.esm"],
+            },
+        })
+        mods = MO2Reader._read_modlist(modlist)
+        assert mods[0].esp_masters == ["Skyrim.esm", "Update.esm"]
+
+    def test_mod_without_esp_has_empty_masters(self, tmp_path):
+        modlist = self._setup_mo2_with_plugins(tmp_path, {
+            "TexturePack": {"modid": "200", "version": "2.0"},
+        })
+        mods = MO2Reader._read_modlist(modlist)
+        assert mods[0].esp_masters == []
+
+    def test_from_files_with_mods_folder(self, tmp_path):
+        modlist = self._setup_mo2_with_plugins(tmp_path, {
+            "MyMod": {
+                "modid": "100",
+                "version": "1.0",
+                "masters": ["Skyrim.esm", "Dawnguard.esm"],
+            },
+        })
+        profile = MO2Reader.from_files(
+            modlist_path=str(modlist),
+            mods_folder=str(tmp_path / "mods"),
+        )
+        assert profile.mods[0].esp_masters == ["Skyrim.esm", "Dawnguard.esm"]
