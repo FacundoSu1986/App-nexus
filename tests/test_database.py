@@ -28,6 +28,19 @@ class TestSchema:
         assert "requirements" in tables
 
 
+class TestIndexes:
+    def test_indexes_created(self, db):
+        indexes = [
+            row[0]
+            for row in db.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            ).fetchall()
+        ]
+        assert "idx_mods_name" in indexes
+        assert "idx_requirements_mod_id" in indexes
+        assert "idx_loot_name" in indexes
+
+
 class TestMods:
     def _sample_mod(self, mod_id=1000):
         return {

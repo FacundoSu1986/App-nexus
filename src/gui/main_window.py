@@ -53,6 +53,8 @@ class MainWindow(tk.Tk):
         self._profile: Optional[MO2Profile] = None
         self._api: Optional[NexusAPI] = None
         self._last_report: Optional[dict] = None
+        self._api_entry: Optional[ttk.Entry] = None
+        self._api_entry_menu: Optional[tk.Menu] = None
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -103,6 +105,13 @@ class MainWindow(tk.Tk):
         self._api_key_var = tk.StringVar()
         api_entry = ttk.Entry(toolbar, textvariable=self._api_key_var, width=42, show="*")
         api_entry.pack(side="left", padx=(0, 8))
+        self._api_entry = api_entry
+
+        self._api_entry_menu = tk.Menu(self, tearoff=0)
+        self._api_entry_menu.add_command(label="Copy", command=self._copy_api_key)
+        self._api_entry_menu.add_command(label="Paste", command=self._paste_api_key)
+        self._api_entry_menu.add_command(label="Select All", command=self._select_all_api_key)
+        api_entry.bind("<Button-3>", self._show_api_key_menu)
 
         ttk.Button(
             toolbar, text="Validate Key", style="Toolbar.TButton",
@@ -274,6 +283,57 @@ class MainWindow(tk.Tk):
     # ------------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------------
+
+    def _show_api_key_menu(self, event) -> None:
+        if self._api_entry_menu is None:
+            return
+        try:
+            self._api_entry_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self._api_entry_menu.grab_release()
+
+    def _copy_api_key(self) -> None:
+        if self._api_entry is None:
+            return
+        try:
+            if self._api_entry.selection_present():
+                text = self._api_entry.selection_get()
+            else:
+                text = self._api_key_var.get()
+            self.clipboard_clear()
+            self.clipboard_append(text)
+        except tk.TclError:
+            return
+
+    def _paste_api_key(self) -> None:
+        entry = self._api_entry
+        if entry is None:
+            return
+        try:
+            clip_text = self.clipboard_get()
+        except tk.TclError:
+            return
+
+        current = self._api_key_var.get()
+        if entry.selection_present():
+            start = int(entry.index("sel.first"))
+            end = int(entry.index("sel.last"))
+        else:
+            start = int(entry.index(tk.INSERT))
+            end = start
+
+        new_value = current[:start] + clip_text + current[end:]
+        self._api_key_var.set(new_value)
+        entry.icursor(start + len(clip_text))
+        entry.selection_clear()
+        entry.focus_set()
+
+    def _select_all_api_key(self) -> None:
+        if self._api_entry is None:
+            return
+        self._api_entry.focus_set()
+        self._api_entry.selection_range(0, tk.END)
+        self._api_entry.icursor(tk.END)
 
     def _toggle_theme(self) -> None:
         """Switch between dark and light sv-ttk themes."""
