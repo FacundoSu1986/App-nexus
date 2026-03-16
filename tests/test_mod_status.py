@@ -343,7 +343,7 @@ class TestVersionIsOlder:
         assert _version_is_older("?", "1.0.0") is False
 
     def test_non_numeric_mismatch(self):
-        assert _version_is_older("1.0a", "1.0b") is True
+        assert _version_is_older("1.0a", "1.0b") is False
 
     def test_non_numeric_same(self):
         assert _version_is_older("1.0a", "1.0a") is False

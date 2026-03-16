@@ -234,21 +234,25 @@ def _version_is_older(local: str, remote: str) -> bool:
     """Return True if *local* appears to be an older version than *remote*.
 
     Attempts semantic version comparison first (splitting on dots and
-    comparing integer tuples).  Falls back to simple string mismatch
-    when the version strings are not purely numeric.
+    comparing integer tuples).  Returns False for non-numeric version
+    strings to avoid false positives.
     """
     if not local or not remote or local == remote:
         return False
     # Ignore placeholder / unknown values
-    if local in ("?", "0", "") or remote in ("?", "0", ""):
+    if local in ("?", "0") or remote in ("?", "0"):
         return False
     try:
         local_parts = tuple(int(p) for p in local.split("."))
         remote_parts = tuple(int(p) for p in remote.split("."))
         return local_parts < remote_parts
     except (ValueError, TypeError):
-        # Non-numeric version strings – treat any mismatch as outdated
-        return local != remote
+        # Non-numeric version strings – cannot compare reliably
+        logger.debug(
+            "Cannot compare non-numeric versions: local=%r remote=%r",
+            local, remote,
+        )
+        return False
 
 
 def compute_mod_statuses(
