@@ -344,7 +344,7 @@ class TestInstanceDiscovery:
 
 
 # ---------------------------------------------------------------------------
-# read_esp_masters – binary ESP header parsing
+# _read_esp_masters – binary ESP header parsing
 # ---------------------------------------------------------------------------
 
 class TestReadEspMasters:
@@ -353,7 +353,7 @@ class TestReadEspMasters:
         esp = _build_esp(mast)
         p = tmp_path / "plugin.esp"
         p.write_bytes(esp)
-        assert MO2Reader.read_esp_masters(p) == ["Skyrim.esm"]
+        assert MO2Reader._read_esp_masters(p) == ["Skyrim.esm"]
 
     def test_multiple_masters(self, tmp_path):
         subs = (
@@ -366,7 +366,7 @@ class TestReadEspMasters:
         esp = _build_esp(subs)
         p = tmp_path / "plugin.esp"
         p.write_bytes(esp)
-        assert MO2Reader.read_esp_masters(p) == [
+        assert MO2Reader._read_esp_masters(p) == [
             "Skyrim.esm", "Update.esm", "Dawnguard.esm",
         ]
 
@@ -376,34 +376,34 @@ class TestReadEspMasters:
         esp = _build_esp(subs)
         p = tmp_path / "plugin.esp"
         p.write_bytes(esp)
-        assert MO2Reader.read_esp_masters(p) == []
+        assert MO2Reader._read_esp_masters(p) == []
 
     def test_missing_file(self, tmp_path):
-        assert MO2Reader.read_esp_masters(tmp_path / "missing.esp") == []
+        assert MO2Reader._read_esp_masters(tmp_path / "missing.esp") == []
 
     def test_file_too_small(self, tmp_path):
         p = tmp_path / "tiny.esp"
         p.write_bytes(b"TES4")
-        assert MO2Reader.read_esp_masters(p) == []
+        assert MO2Reader._read_esp_masters(p) == []
 
     def test_invalid_header_type(self, tmp_path):
         p = tmp_path / "bad.esp"
         p.write_bytes(b"NOTATES4HEADERDATA__XXXX")
-        assert MO2Reader.read_esp_masters(p) == []
+        assert MO2Reader._read_esp_masters(p) == []
 
     def test_esm_extension(self, tmp_path):
         mast = _build_subrecord(b"MAST", b"Skyrim.esm\x00")
         esm = _build_esp(mast)
         p = tmp_path / "plugin.esm"
         p.write_bytes(esm)
-        assert MO2Reader.read_esp_masters(p) == ["Skyrim.esm"]
+        assert MO2Reader._read_esp_masters(p) == ["Skyrim.esm"]
 
     def test_esl_extension(self, tmp_path):
         mast = _build_subrecord(b"MAST", b"Skyrim.esm\x00")
         esl = _build_esp(mast, flags=0x200)  # ESL flag
         p = tmp_path / "plugin.esl"
         p.write_bytes(esl)
-        assert MO2Reader.read_esp_masters(p) == ["Skyrim.esm"]
+        assert MO2Reader._read_esp_masters(p) == ["Skyrim.esm"]
 
     def test_truncated_subrecord_is_safe(self, tmp_path):
         """If the data block is shorter than expected, parsing stops safely."""
@@ -415,7 +415,7 @@ class TestReadEspMasters:
         p = tmp_path / "trunc.esp"
         p.write_bytes(header + mast)
         # Should still extract what is available
-        assert MO2Reader.read_esp_masters(p) == ["Skyrim.esm"]
+        assert MO2Reader._read_esp_masters(p) == ["Skyrim.esm"]
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +449,7 @@ class TestCollectModMasters:
 
 
 # ---------------------------------------------------------------------------
-# Integration: _read_modlist populates esp_masters
+# Integration: _read_modlist populates masters
 # ---------------------------------------------------------------------------
 
 class TestReadModlistWithEspMasters:
@@ -499,14 +499,14 @@ class TestReadModlistWithEspMasters:
             },
         })
         mods = MO2Reader._read_modlist(modlist)
-        assert mods[0].esp_masters == ["Skyrim.esm", "Update.esm"]
+        assert mods[0].masters == ["Skyrim.esm", "Update.esm"]
 
     def test_mod_without_esp_has_empty_masters(self, tmp_path):
         modlist = self._setup_mo2_with_plugins(tmp_path, {
             "TexturePack": {"modid": "200", "version": "2.0"},
         })
         mods = MO2Reader._read_modlist(modlist)
-        assert mods[0].esp_masters == []
+        assert mods[0].masters == []
 
     def test_from_files_with_mods_folder(self, tmp_path):
         modlist = self._setup_mo2_with_plugins(tmp_path, {
@@ -520,4 +520,4 @@ class TestReadModlistWithEspMasters:
             modlist_path=str(modlist),
             mods_folder=str(tmp_path / "mods"),
         )
-        assert profile.mods[0].esp_masters == ["Skyrim.esm", "Dawnguard.esm"]
+        assert profile.mods[0].masters == ["Skyrim.esm", "Dawnguard.esm"]
