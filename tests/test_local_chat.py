@@ -1,5 +1,6 @@
 """Tests for local_agent.chat (Ollama function calling)."""
 
+import pytest
 from unittest.mock import patch, MagicMock
 
 from src.ai.local_agent import chat, CHAT_TOOLS, CHAT_SYSTEM_PROMPT
@@ -12,9 +13,31 @@ class TestLocalChat:
         """The system prompt must force tool use and forbid hallucinations."""
         assert "CRITICAL RULES" in CHAT_SYSTEM_PROMPT
         assert "NEVER guess or invent tools" in CHAT_SYSTEM_PROMPT
-        for required in ("search_mod_in_db", "get_mod_requirements", "get_loot_warnings"):
-            assert required in CHAT_SYSTEM_PROMPT
+        for tool in CHAT_TOOLS:
+            name = tool.get("function", {}).get("name")
+            if name:
+                assert name in CHAT_SYSTEM_PROMPT
         assert "tool calls properly" in CHAT_SYSTEM_PROMPT
+
+    @patch("src.ai.local_agent._import_ollama")
+    def test_system_prompt_is_sent_first(self, mock_import):
+        """Ensure the chat call includes the sandboxing system prompt."""
+        mock_ollama = MagicMock()
+        response = MagicMock()
+        response.message.tool_calls = None
+        response.message.content = "ok"
+        mock_ollama.chat.return_value = response
+        mock_import.return_value = mock_ollama
+
+        mock_db = MagicMock()
+        chat("Check dependencies", db=mock_db)
+
+        called_args, called_kwargs = mock_ollama.chat.call_args
+        messages = called_kwargs.get("messages")
+        if not messages:
+            pytest.fail("Ollama.chat was not called with messages")
+        assert messages[0]["role"] == "system"
+        assert CHAT_SYSTEM_PROMPT in messages[0]["content"]
 
     @patch("src.ai.local_agent._import_ollama")
     def test_simple_reply_without_tool_calls(self, mock_import):

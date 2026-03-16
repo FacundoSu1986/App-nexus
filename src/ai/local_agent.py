@@ -13,6 +13,7 @@ Requires Ollama to be installed and running locally with a supported model
 
 import json
 import logging
+import textwrap
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -266,13 +267,6 @@ def analyse_and_cache_mod(
 # Conversational chat with function calling
 # ------------------------------------------------------------------
 
-CHAT_SYSTEM_PROMPT = """You are the technical diagnostics agent for App-nexus (Skyrim SE/AE).
-CRITICAL RULES:
-1. NEVER guess or invent tools (e.g., do not suggest fictional tools like 'BSA Merge Tool').
-2. If the user asks about a mod, you MUST use the provided tools (search_mod_in_db, get_mod_requirements, get_loot_warnings) to retrieve facts before answering.
-3. If the tools return no data, explicitly state that the information is not in the local database. Do not hallucinate dependencies.
-4. Always structure your tool calls properly. Do not output raw JSON tool calls as text."""
-
 CHAT_TOOLS = [
     {
         "type": "function",
@@ -337,6 +331,36 @@ CHAT_TOOLS = [
         },
     },
 ]
+
+def _tool_name_list(tools: list[dict]) -> str:
+    """Flatten tool names into a single line for the system prompt."""
+    names: list[str] = []
+    for tool in tools:
+        fn = tool.get("function", {})
+        name = fn.get("name")
+        if name:
+            clean_name = name.replace("\n", " ")
+            if clean_name != name:
+                logger.warning("Tool name contained newline; normalising.")
+            names.append(clean_name)
+    return ", ".join(names)
+
+
+def _build_chat_system_prompt() -> str:
+    tool_names = _tool_name_list(CHAT_TOOLS)
+    return textwrap.dedent(
+        f"""\
+You are the technical diagnostics agent for App-nexus (Skyrim SE/AE).
+CRITICAL RULES:
+1. NEVER guess or invent tools (e.g., do not suggest fictional tools like 'BSA Merge Tool').
+2. If the user asks about a mod, you MUST use the provided tools ({tool_names}) to retrieve facts before answering.
+3. If the tools return no data, explicitly state that the information is not in the local database. Do not hallucinate dependencies.
+4. Always structure your tool calls properly. Do not output raw JSON tool calls as text.
+"""
+    ).strip()
+
+
+CHAT_SYSTEM_PROMPT = _build_chat_system_prompt()
 
 
 def chat(
