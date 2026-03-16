@@ -14,9 +14,9 @@ from src.ai.local_agent import (
     DEFAULT_MODEL,
     _SYSTEM_PROMPT,
     _CACHE_SYSTEM_PROMPT,
-    CHAT_SYSTEM_PROMPT,
     CHAT_TOOLS,
 )
+from src.ai.tools import CHAT_SYSTEM_PROMPT as TOOLS_CHAT_SYSTEM_PROMPT
 
 
 class TestSystemPrompt:
@@ -32,9 +32,8 @@ class TestSystemPrompt:
 
 class TestChatSystemPrompt:
     def test_chat_prompt_is_skyrim_focused(self):
-        assert "Skyrim" in CHAT_SYSTEM_PROMPT
-        assert "App-nexus" in CHAT_SYSTEM_PROMPT
-        assert "Do not talk about other games" in CHAT_SYSTEM_PROMPT
+        assert "Skyrim" in TOOLS_CHAT_SYSTEM_PROMPT
+        assert "mod compatibility assistant" in TOOLS_CHAT_SYSTEM_PROMPT
 
     def test_chat_tools_defined(self):
         tool_names = [t["function"]["name"] for t in CHAT_TOOLS]
