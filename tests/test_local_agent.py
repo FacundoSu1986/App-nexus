@@ -362,7 +362,14 @@ class TestChatToolCalling:
 
         mock_db = MagicMock()
         mock_db.get_loot_entry.return_value = None
-        mock_db.search_loot_entries_by_name.return_value = []
+        mock_db.search_loot_entries_by_name.return_value = [
+            {
+                "name": "Missing.esp",
+                "req": ["Requirement X"],
+                "inc": [],
+                "msg": ["Found via fallback search"],
+            }
+        ]
 
         reply, history = chat(
             "LOOT warnings for Missing.esp?", db=mock_db
@@ -370,11 +377,11 @@ class TestChatToolCalling:
 
         assert reply == "No LOOT data for that plugin."
         mock_db.search_loot_entries_by_name.assert_called_once_with("Missing.esp")
-        # Verify the tool result message was appended with "not found" text
+        # Verify the tool result message used the fallback entry
         tool_msgs = [m for m in history if isinstance(m, dict)
                      and m.get("role") == "tool"]
-        assert any("No LOOT data found" in m["content"]
-                    for m in tool_msgs)
+        assert any("Found via fallback search" in m["content"]
+                   for m in tool_msgs)
 
     @patch("src.ai.local_agent._import_ollama")
     def test_chat_no_tool_calls(self, mock_import):
