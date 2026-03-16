@@ -326,11 +326,18 @@ def chat(
                 # Support both attribute and dict access
                 if hasattr(tool, "function"):
                     tool_name = tool.function.name
-                    args = tool.function.arguments or {}
+                    args = tool.function.arguments
                 else:
                     fn = tool.get("function", {})
                     tool_name = fn.get("name")
-                    args = fn.get("arguments", {}) or {}
+                    args = fn.get("arguments")
+
+                if args is None:
+                    logger.warning(
+                        "Tool call '%s' missing arguments; defaulting to empty dict.",
+                        tool_name,
+                    )
+                    args = {}
 
                 logger.info(
                     "AI requested tool: %s with args: %s", tool_name, args
