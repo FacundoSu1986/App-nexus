@@ -110,6 +110,10 @@ class DatabaseManager:
                 analyzed_by     TEXT NOT NULL DEFAULT '',      -- 'ollama' or 'claude'
                 last_analyzed   TEXT NOT NULL DEFAULT ''       -- ISO timestamp
             );
+
+            CREATE INDEX IF NOT EXISTS idx_mods_name ON mods(name);
+            CREATE INDEX IF NOT EXISTS idx_requirements_mod_id ON requirements(mod_id);
+            CREATE INDEX IF NOT EXISTS idx_loot_name ON loot_entries(name);
             """
         )
         self.conn.commit()
