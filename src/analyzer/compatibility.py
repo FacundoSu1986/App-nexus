@@ -52,6 +52,7 @@ from src.loot.masterlist import clean_loot_message
 if TYPE_CHECKING:
     from src.database.manager import DatabaseManager
     from src.mo2.reader import MO2Profile
+    from src.mo2.reader import InstalledMod
 
 # Threshold chosen empirically: at 0.82 common Skyrim mod names that differ by
 # one word (e.g. "SkyUI" vs "SkyUI SE") are still considered the same mod, while
@@ -100,7 +101,9 @@ def _mod_in_list(mod_name: str, name_list: list) -> bool:
     return False
 
 
-def _missing_master_requirements(mod, load_order_lower: set[str]) -> list[dict]:
+def _missing_master_requirements(
+    mod: "InstalledMod", load_order_lower: set[str]
+) -> list[dict]:
     """Return missing master plugin requirements for *mod*."""
     missing: list[dict] = []
     for master in mod.masters:
