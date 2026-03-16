@@ -332,11 +332,15 @@ def chat(
                     tool_name = fn.get("name")
                     args = fn.get("arguments")
 
+                if not tool_name:
+                    logger.warning("Received tool call with no name; skipping.")
+                    continue
+
                 if args is None:
                     logger.warning(
                         "Tool call '%s' missing arguments; defaulting to empty dict.",
                         tool_name,
-                    )
+                        )
                     args = {}
 
                 logger.info(

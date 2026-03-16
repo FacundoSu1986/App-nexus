@@ -291,7 +291,7 @@ class TestChatToolCalling:
         first_response = MagicMock()
         tool_call = MagicMock()
         tool_call.function.name = "get_mod_requirements"
-        tool_call.function.arguments = {"nexus_id": "3863"}
+        tool_call.function.arguments = {"nexus_id": 3863}
         first_response.message.tool_calls = [tool_call]
 
         final_response = MagicMock()
