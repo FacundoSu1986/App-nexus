@@ -115,7 +115,7 @@ def _missing_master_requirements(
                 {
                     "mod_name": mod.name,
                     "required_name": master,
-                    "required_url": "Local Plugin Dependency",
+                    "required_url": "Local Plugin",
                     "is_patch": False,
                 }
             )

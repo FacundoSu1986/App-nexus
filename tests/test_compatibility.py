@@ -128,7 +128,7 @@ class TestMissingRequirements:
         assert {
             "mod_name": "MyMod",
             "required_name": "MissingMaster.esm",
-            "required_url": "Local Plugin Dependency",
+            "required_url": "Local Plugin",
             "is_patch": False,
         } in report["missing_requirements"]
 
