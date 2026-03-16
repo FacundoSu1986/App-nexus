@@ -122,7 +122,7 @@ class CompatibilityAnalyzer:
         loot_warnings: list = []
 
         for mod in profile.enabled_mods:
-            for master in getattr(mod, "masters", []):
+            for master in mod.masters:
                 master_lower = master.lower()
                 if master_lower in _IGNORED_MASTERS:
                     continue
