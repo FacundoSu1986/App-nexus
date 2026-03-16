@@ -8,6 +8,7 @@ from src.analyzer.compatibility import (
     CompatibilityAnalyzer,
     compute_mod_statuses,
     _match_plugin_to_mod,
+    _version_is_older,
 )
 from src.database.manager import DatabaseManager
 from src.mo2.reader import InstalledMod, MO2Profile
@@ -310,3 +311,106 @@ class TestPopulateModListStatuses:
                 assert mod.name in statuses, (
                     f"Enabled mod '{mod.name}' missing from statuses dict"
                 )
+
+
+# ---------------------------------------------------------------------------
+# _version_is_older
+# ---------------------------------------------------------------------------
+
+class TestVersionIsOlder:
+    def test_newer_semver(self):
+        assert _version_is_older("1.0.0", "2.0.0") is True
+
+    def test_same_version(self):
+        assert _version_is_older("1.2.3", "1.2.3") is False
+
+    def test_local_is_newer(self):
+        assert _version_is_older("2.0.0", "1.0.0") is False
+
+    def test_minor_bump(self):
+        assert _version_is_older("1.0.0", "1.1.0") is True
+
+    def test_patch_bump(self):
+        assert _version_is_older("1.0.0", "1.0.1") is True
+
+    def test_empty_local(self):
+        assert _version_is_older("", "1.0.0") is False
+
+    def test_empty_remote(self):
+        assert _version_is_older("1.0.0", "") is False
+
+    def test_placeholder_local(self):
+        assert _version_is_older("?", "1.0.0") is False
+
+    def test_non_numeric_mismatch(self):
+        assert _version_is_older("1.0a", "1.0b") is False
+
+    def test_non_numeric_same(self):
+        assert _version_is_older("1.0a", "1.0a") is False
+
+
+# ---------------------------------------------------------------------------
+# compute_mod_statuses with version comparison
+# ---------------------------------------------------------------------------
+
+class TestComputeModStatusesVersionCheck:
+    """Verify that compute_mod_statuses flags outdated mods as ⚠ UPDATE."""
+
+    def test_outdated_mod_gets_update_status(self, db):
+        db.upsert_mod({
+            "mod_id": 100, "name": "SkyUI", "version": "5.5",
+            "summary": "", "last_updated": "2024-01-01T00:00:00",
+        })
+        profile = _make_profile([("SkyUI", True)])
+        # Give the mod a nexus_id and older version
+        profile.mods[0].nexus_id = "100"
+        profile.mods[0].version = "5.2"
+        report = _empty_report(profile)
+        result = compute_mod_statuses(report, profile.mods, db=db)
+        assert result["SkyUI"] == "\u26a0 UPDATE"
+
+    def test_up_to_date_mod_stays_ok(self, db):
+        db.upsert_mod({
+            "mod_id": 101, "name": "SKSE64", "version": "2.2.3",
+            "summary": "", "last_updated": "2024-01-01T00:00:00",
+        })
+        profile = _make_profile([("SKSE64", True)])
+        profile.mods[0].nexus_id = "101"
+        profile.mods[0].version = "2.2.3"
+        report = _empty_report(profile)
+        result = compute_mod_statuses(report, profile.mods, db=db)
+        assert result["SKSE64"] == "\u2714 OK"
+
+    def test_error_takes_precedence_over_update(self, db):
+        db.upsert_mod({
+            "mod_id": 102, "name": "SkyUI", "version": "5.5",
+            "summary": "", "last_updated": "2024-01-01T00:00:00",
+        })
+        profile = _make_profile([("SkyUI", True)])
+        profile.mods[0].nexus_id = "102"
+        profile.mods[0].version = "5.2"
+        report = _empty_report(profile)
+        report["missing_requirements"].append(
+            {"mod_name": "SkyUI", "required_name": "SKSE64", "is_patch": False}
+        )
+        result = compute_mod_statuses(report, profile.mods, db=db)
+        assert result["SkyUI"] == "\u2718 ERROR"
+
+    def test_no_db_skips_version_check(self):
+        profile = _make_profile([("SkyUI", True)])
+        profile.mods[0].nexus_id = "100"
+        profile.mods[0].version = "5.2"
+        report = _empty_report(profile)
+        result = compute_mod_statuses(report, profile.mods, db=None)
+        assert result["SkyUI"] == "\u2714 OK"
+
+    def test_no_nexus_id_skips_version_check(self, db):
+        db.upsert_mod({
+            "mod_id": 103, "name": "LocalMod", "version": "1.0",
+            "summary": "", "last_updated": "2024-01-01T00:00:00",
+        })
+        profile = _make_profile([("LocalMod", True)])
+        # nexus_id defaults to "0"
+        report = _empty_report(profile)
+        result = compute_mod_statuses(report, profile.mods, db=db)
+        assert result["LocalMod"] == "\u2714 OK"

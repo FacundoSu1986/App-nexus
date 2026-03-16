@@ -44,6 +44,7 @@ Report structure
 
 from __future__ import annotations
 
+import logging
 from difflib import SequenceMatcher
 from typing import TYPE_CHECKING
 
@@ -53,6 +54,8 @@ if TYPE_CHECKING:
     from src.database.manager import DatabaseManager
     from src.mo2.reader import MO2Profile
     from src.mo2.reader import InstalledMod
+
+logger = logging.getLogger(__name__)
 
 # Threshold chosen empirically: at 0.82 common Skyrim mod names that differ by
 # one word (e.g. "SkyUI" vs "SkyUI SE") are still considered the same mod, while
@@ -211,6 +214,7 @@ class CompatibilityAnalyzer:
 _STATUS_OK = "✔ OK"
 _STATUS_WARN = "⚠ WARN"
 _STATUS_ERROR = "✘ ERROR"
+_STATUS_UPDATE = "⚠ UPDATE"
 
 _SEVERITY_LABELS = {0: _STATUS_OK, 1: _STATUS_WARN, 2: _STATUS_ERROR}
 
@@ -226,9 +230,35 @@ def _match_plugin_to_mod(
     return None
 
 
+def _version_is_older(local: str, remote: str) -> bool:
+    """Return True if *local* appears to be an older version than *remote*.
+
+    Attempts semantic version comparison first (splitting on dots and
+    comparing integer tuples).  Returns False for non-numeric version
+    strings to avoid false positives.
+    """
+    if not local or not remote or local == remote:
+        return False
+    # Ignore placeholder / unknown values
+    if local in ("?", "0") or remote in ("?", "0"):
+        return False
+    try:
+        local_parts = tuple(int(p) for p in local.split("."))
+        remote_parts = tuple(int(p) for p in remote.split("."))
+        return local_parts < remote_parts
+    except (ValueError, TypeError):
+        # Non-numeric version strings – cannot compare reliably
+        logger.debug(
+            "Cannot compare non-numeric versions: local=%r remote=%r",
+            local, remote,
+        )
+        return False
+
+
 def compute_mod_statuses(
     report: dict,
     mods: "list[InstalledMod]",
+    db: "DatabaseManager | None" = None,
 ) -> dict[str, str]:
     """Derive a per-mod traffic-light status string from an analysis report.
 
@@ -238,15 +268,22 @@ def compute_mod_statuses(
         The dict returned by :meth:`CompatibilityAnalyzer.analyse`.
     mods:
         The full list of :class:`InstalledMod` objects from the profile.
+    db:
+        Optional :class:`DatabaseManager` used to look up the cached Nexus
+        version for each mod so that outdated local versions can be flagged
+        with ``"⚠ UPDATE"``.
 
     Returns
     -------
     dict[str, str]
-        Mapping of mod name → status string (``"✔ OK"``, ``"⚠ WARN"``
-        or ``"✘ ERROR"``).  Only **enabled** mods are included.
+        Mapping of mod name → status string (``"✔ OK"``, ``"⚠ WARN"``,
+        ``"✘ ERROR"``, or ``"⚠ UPDATE"``).  Only **enabled** mods are
+        included.
     """
     # severity per mod: 0 = OK, 1 = WARN, 2 = ERROR
     severity: dict[str, int] = {}
+    # Track mods that are outdated so we can override later
+    outdated: set[str] = set()
 
     for entry in report["missing_requirements"]:
         mod_name = entry["mod_name"]
@@ -266,6 +303,27 @@ def compute_mod_statuses(
         if matched:
             severity[matched] = max(severity.get(matched, 0), 1)
 
+    # Version comparison against cached Nexus data
+    if db is not None:
+        for mod in mods:
+            if not mod.enabled:
+                continue
+            if not mod.nexus_id or mod.nexus_id == "0":
+                continue
+            try:
+                db_mod = db.get_mod(int(mod.nexus_id))
+            except (ValueError, TypeError):
+                continue
+            if db_mod is None:
+                continue
+            version_nexus = db_mod.get("version", "")
+            if _version_is_older(mod.version, version_nexus):
+                outdated.add(mod.name)
+                logger.debug(
+                    "Mod '%s' outdated: local=%s nexus=%s",
+                    mod.name, mod.version, version_nexus,
+                )
+
     result: dict[str, str] = {}
     for name, level in severity.items():
         result[name] = _SEVERITY_LABELS[level]
@@ -274,5 +332,10 @@ def compute_mod_statuses(
     for mod in mods:
         if mod.enabled and mod.name not in result:
             result[mod.name] = _STATUS_OK
+
+    # Override status for outdated mods (only when no worse issue exists)
+    for name in outdated:
+        if name in result and result[name] == _STATUS_OK:
+            result[name] = _STATUS_UPDATE
 
     return result
