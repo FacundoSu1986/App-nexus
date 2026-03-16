@@ -42,20 +42,28 @@ class TestParseResponse:
             "requirements": ["SKSE64"],
             "patches": ["Patch A"],
             "known_issues": ["Issue 1"],
+            "load_order": ["Load after USSEP"],
         })
         result = _parse_response(raw)
         assert result["requirements"] == ["SKSE64"]
         assert result["patches"] == ["Patch A"]
         assert result["known_issues"] == ["Issue 1"]
+        assert result["load_order"] == ["Load after USSEP"]
 
     def test_json_with_code_fences(self):
         raw = '```json\n{"requirements": [], "patches": ["P"], "known_issues": []}\n```'
         result = _parse_response(raw)
         assert result["patches"] == ["P"]
+        assert result["load_order"] == []
 
     def test_invalid_json_returns_defaults(self):
         result = _parse_response("not json")
-        assert result == {"requirements": [], "patches": [], "known_issues": []}
+        assert result == {
+            "requirements": [],
+            "patches": [],
+            "known_issues": [],
+            "load_order": [],
+        }
 
 
 class TestAnalyseMod:
@@ -66,6 +74,7 @@ class TestAnalyseMod:
             "requirements": ["SKSE64", "SkyUI"],
             "patches": [],
             "known_issues": [],
+            "load_order": ["Load after USSEP"],
         })
         mock_message = MagicMock()
         mock_message.content = [mock_content]
@@ -81,6 +90,7 @@ class TestAnalyseMod:
         result = analyse_mod(page_data, api_key="test-key-123")
 
         assert result["requirements"] == ["SKSE64", "SkyUI"]
+        assert result["load_order"] == ["Load after USSEP"]
         mock_anthropic.Anthropic.assert_called_once_with(api_key="test-key-123")
 
     @patch("src.ai.claude_agent._import_anthropic")

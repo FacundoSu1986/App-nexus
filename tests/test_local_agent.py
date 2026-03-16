@@ -14,9 +14,11 @@ from src.ai.local_agent import (
     DEFAULT_MODEL,
     _SYSTEM_PROMPT,
     _CACHE_SYSTEM_PROMPT,
-    CHAT_TOOLS,
 )
-from src.ai.tools import CHAT_SYSTEM_PROMPT as TOOLS_CHAT_SYSTEM_PROMPT
+from src.ai.tools import (
+    CHAT_SYSTEM_PROMPT as TOOLS_CHAT_SYSTEM_PROMPT,
+    OLLAMA_TOOLS,
+)
 
 
 class TestSystemPrompt:
@@ -36,10 +38,11 @@ class TestChatSystemPrompt:
         assert "mod compatibility assistant" in TOOLS_CHAT_SYSTEM_PROMPT
 
     def test_chat_tools_defined(self):
-        tool_names = [t["function"]["name"] for t in CHAT_TOOLS]
-        assert "search_mod_in_db" in tool_names
+        tool_names = [t["function"]["name"] for t in OLLAMA_TOOLS]
+        assert "search_mod" in tool_names
         assert "get_mod_requirements" in tool_names
         assert "get_loot_warnings" in tool_names
+        assert "find_patches" in tool_names
 
 
 class TestBuildUserPrompt:
@@ -256,8 +259,8 @@ class TestChatToolCalling:
         # First call returns a tool_call request
         first_response = MagicMock()
         tool_call = MagicMock()
-        tool_call.function.name = "search_mod_in_db"
-        tool_call.function.arguments = {"mod_name": "SkyUI"}
+        tool_call.function.name = "search_mod"
+        tool_call.function.arguments = {"name": "SkyUI"}
         first_response.message.tool_calls = [tool_call]
         first_response.message.content = ""
 
@@ -359,17 +362,26 @@ class TestChatToolCalling:
 
         mock_db = MagicMock()
         mock_db.get_loot_entry.return_value = None
+        mock_db.search_loot_entries_by_name.return_value = [
+            {
+                "name": "Missing.esp",
+                "req": ["Requirement X"],
+                "inc": [],
+                "msg": ["Found via fallback search"],
+            }
+        ]
 
         reply, history = chat(
             "LOOT warnings for Missing.esp?", db=mock_db
         )
 
         assert reply == "No LOOT data for that plugin."
-        # Verify the tool result message was appended with "not found" text
+        mock_db.search_loot_entries_by_name.assert_called_once_with("Missing.esp")
+        # Verify the tool result message used the fallback entry
         tool_msgs = [m for m in history if isinstance(m, dict)
                      and m.get("role") == "tool"]
-        assert any("No LOOT warnings found" in m["content"]
-                    for m in tool_msgs)
+        assert any("Found via fallback search" in m["content"]
+                   for m in tool_msgs)
 
     @patch("src.ai.local_agent._import_ollama")
     def test_chat_no_tool_calls(self, mock_import):

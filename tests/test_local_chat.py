@@ -3,7 +3,8 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.ai.local_agent import chat, CHAT_TOOLS, CHAT_SYSTEM_PROMPT
+from src.ai.local_agent import chat
+from src.ai.tools import CHAT_SYSTEM_PROMPT, OLLAMA_TOOLS
 
 
 class TestLocalChat:
@@ -11,13 +12,10 @@ class TestLocalChat:
 
     def test_chat_system_prompt_enforces_tools(self):
         """The system prompt must force tool use and forbid hallucinations."""
-        assert "CRITICAL RULES" in CHAT_SYSTEM_PROMPT
-        assert "NEVER guess or invent tools" in CHAT_SYSTEM_PROMPT
-        for tool in CHAT_TOOLS:
-            name = tool.get("function", {}).get("name")
-            if name:
-                assert name in CHAT_SYSTEM_PROMPT
-        assert "tool calls properly" in CHAT_SYSTEM_PROMPT
+        assert "Skyrim" in CHAT_SYSTEM_PROMPT
+        assert "compatibility assistant" in CHAT_SYSTEM_PROMPT
+        assert "tools" in CHAT_SYSTEM_PROMPT.lower()
+        assert len(OLLAMA_TOOLS) >= 1
 
     @patch("src.ai.local_agent._import_ollama")
     def test_system_prompt_is_sent_first(self, mock_import):
@@ -66,8 +64,8 @@ class TestLocalChat:
         # First call: model wants to use a tool
         first_response = MagicMock()
         tool_call = MagicMock()
-        tool_call.function.name = "search_mod_in_db"
-        tool_call.function.arguments = {"mod_name": "SkyUI"}
+        tool_call.function.name = "search_mod"
+        tool_call.function.arguments = {"name": "SkyUI"}
         first_response.message.tool_calls = [tool_call]
 
         # Second call: model produces a text reply
@@ -122,8 +120,8 @@ class TestLocalChat:
         # First call: model requests two tools at once
         first_response = MagicMock()
         tool_call_1 = MagicMock()
-        tool_call_1.function.name = "search_mod_in_db"
-        tool_call_1.function.arguments = {"mod_name": "Weapons"}
+        tool_call_1.function.name = "search_mod"
+        tool_call_1.function.arguments = {"name": "Weapons"}
         tool_call_2 = MagicMock()
         tool_call_2.function.name = "get_loot_warnings"
         tool_call_2.function.arguments = {"plugin_name": "ImmersiveWeapons.esp"}

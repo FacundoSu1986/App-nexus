@@ -13,11 +13,10 @@ Requires Ollama to be installed and running locally with a supported model
 
 import json
 import logging
-import textwrap
 from datetime import datetime, timezone
 from typing import Optional
 
-from src.ai.tools import ToolExecutor
+from src.ai.tools import CHAT_SYSTEM_PROMPT, OLLAMA_TOOLS, ToolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -263,106 +262,6 @@ def analyse_and_cache_mod(
     return result
 
 
-# ------------------------------------------------------------------
-# Conversational chat with function calling
-# ------------------------------------------------------------------
-
-CHAT_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_mod_in_db",
-            "description": (
-                "Search for a mod in the local App-nexus database to see "
-                "if it is installed or cached."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "mod_name": {
-                        "type": "string",
-                        "description": "Name of the mod (e.g.: SkyUI, Ordinator)",
-                    }
-                },
-                "required": ["mod_name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_mod_requirements",
-            "description": (
-                "Gets the list of dependencies and required patches for "
-                "a mod using its Nexus ID."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "nexus_id": {
-                        "type": "integer",
-                        "description": "The numeric ID of the mod on Nexus Mods.",
-                    }
-                },
-                "required": ["nexus_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_loot_warnings",
-            "description": (
-                "Gets LOOT warnings for a specific plugin filename."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "plugin_name": {
-                        "type": "string",
-                        "description": (
-                            "Plugin filename (e.g.: SkyUI_SE.esp, "
-                            "Immersive Weapons.esp)"
-                        ),
-                    }
-                },
-                "required": ["plugin_name"],
-            },
-        },
-    },
-]
-
-def _tool_name_list(tools: list[dict]) -> str:
-    """Flatten tool names into a single line for the system prompt."""
-    names: list[str] = []
-    for tool in tools:
-        fn = tool.get("function", {})
-        name = fn.get("name")
-        if name:
-            clean_name = name.replace("\n", " ")
-            if clean_name != name:
-                logger.warning("Tool name contained newline; normalising.")
-            names.append(clean_name)
-    return ", ".join(names)
-
-
-def _build_chat_system_prompt() -> str:
-    tool_names = _tool_name_list(CHAT_TOOLS)
-    return textwrap.dedent(
-        f"""\
-You are the technical diagnostics agent for App-nexus (Skyrim SE/AE).
-CRITICAL RULES:
-1. NEVER guess or invent tools (e.g., do not suggest fictional tools like 'BSA Merge Tool').
-2. If the user asks about a mod, you MUST use the provided tools ({tool_names}) to retrieve facts before answering.
-3. If the tools return no data, explicitly state that the information is not in the local database. Do not hallucinate dependencies.
-4. Always structure your tool calls properly. Do not output raw JSON tool calls as text.
-"""
-    ).strip()
-
-
-CHAT_SYSTEM_PROMPT = _build_chat_system_prompt()
-
-
 def chat(
     user_message: str,
     db,
@@ -405,7 +304,7 @@ def chat(
         response = ollama.chat(
             model=model,
             messages=history,
-            tools=CHAT_TOOLS,
+            tools=OLLAMA_TOOLS,
         )
 
         # Step 2: Check if AI decided to use a tool
@@ -429,52 +328,26 @@ def chat(
                     tool_name = tool.function.name
                     args = tool.function.arguments
                 else:
-                    fn = tool["function"]
-                    tool_name = fn["name"]
-                    args = fn.get("arguments", {})
+                    fn = tool.get("function", {})
+                    tool_name = fn.get("name")
+                    args = fn.get("arguments")
+
+                if not tool_name:
+                    logger.warning("Received tool call with no name; skipping.")
+                    continue
+
+                if args is None:
+                    logger.warning(
+                        "Tool call '%s' missing arguments; defaulting to empty dict.",
+                        tool_name,
+                        )
+                    args = {}
 
                 logger.info(
                     "AI requested tool: %s with args: %s", tool_name, args
                 )
 
-                tool_result_str = ""
-
-                if tool_name == "search_mod_in_db":
-                    results = db.search_mods_by_name(args["mod_name"])
-                    if results:
-                        tool_result_str = json.dumps(
-                            [dict(r) for r in results], default=str
-                        )
-                    else:
-                        tool_result_str = (
-                            f"Mod '{args['mod_name']}' not found in database."
-                        )
-
-                elif tool_name == "get_mod_requirements":
-                    reqs = db.get_requirements(args["nexus_id"])
-                    if reqs:
-                        tool_result_str = json.dumps(
-                            [dict(r) for r in reqs], default=str
-                        )
-                    else:
-                        tool_result_str = (
-                            "No requirements registered for this mod ID."
-                        )
-
-                elif tool_name == "get_loot_warnings":
-                    entry = db.get_loot_entry(args["plugin_name"])
-                    if entry:
-                        tool_result_str = json.dumps(
-                            dict(entry), default=str
-                        )
-                    else:
-                        tool_result_str = (
-                            f"No LOOT warnings found for "
-                            f"'{args['plugin_name']}'."
-                        )
-                else:
-                    # Delegate unknown tools to the ToolExecutor
-                    tool_result_str = executor.execute(tool_name, args)
+                tool_result_str = executor.execute(tool_name, args)
 
                 # Step 3: Return tool result to AI
                 history.append({

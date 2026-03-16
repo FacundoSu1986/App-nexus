@@ -25,13 +25,15 @@ ATTRIBUTION = "Powered by Claude"
 
 _SYSTEM_PROMPT = (
     "You are a Skyrim mod compatibility analyst.  Given the raw HTML/text "
-    "from a Nexus Mods page, extract:\n"
+    "from a Nexus Mods page, extract the following four categories:\n"
     "1. requirements — a JSON list of mod names that this mod requires.\n"
     "2. patches — a JSON list of compatibility patches mentioned.\n"
     "3. known_issues — a JSON list of known issues or incompatibilities "
-    "reported by users.\n\n"
+    "reported by users.\n"
+    "4. load_order — a JSON list of load-order notes or recommendations.\n\n"
     "Respond ONLY with valid JSON in this exact format:\n"
-    '{"requirements": [], "patches": [], "known_issues": []}\n'
+    '{"requirements": [], "patches": [], "known_issues": [], '
+    '"load_order": []}\n'
     "Do NOT include any explanation or markdown."
 )
 
@@ -70,7 +72,12 @@ def _build_user_prompt(page_data: dict) -> str:
 
 def _parse_response(raw: str) -> dict:
     """Best-effort parse of the Claude response into our expected schema."""
-    default = {"requirements": [], "patches": [], "known_issues": []}
+    default = {
+        "requirements": [],
+        "patches": [],
+        "known_issues": [],
+        "load_order": [],
+    }
     try:
         cleaned = raw.strip()
         if cleaned.startswith("```"):
@@ -84,6 +91,7 @@ def _parse_response(raw: str) -> dict:
             "requirements": data.get("requirements", []),
             "patches": data.get("patches", []),
             "known_issues": data.get("known_issues", []),
+            "load_order": data.get("load_order", []),
         }
     except (json.JSONDecodeError, AttributeError):
         logger.warning("Could not parse Claude response as JSON: %s", raw[:200])
@@ -110,7 +118,7 @@ def analyse_mod(
     Returns
     -------
     dict
-        ``{"requirements": [...], "patches": [...], "known_issues": [...]}``
+        ``{"requirements": [...], "patches": [...], "known_issues": [...], "load_order": [...]}``
     """
     anthropic = _import_anthropic()
 
