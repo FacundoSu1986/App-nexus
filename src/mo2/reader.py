@@ -23,7 +23,7 @@ class InstalledMod:
     enabled: bool
     nexus_id: str = "0"
     version: str = "?"
-    esp_masters: list[str] = field(default_factory=list)
+    masters: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -111,7 +111,7 @@ class MO2Reader:
         return result
 
     @staticmethod
-    def read_esp_masters(esp_path: Path) -> list[str]:
+    def _read_esp_masters(esp_path: Path) -> list[str]:
         """Read MAST (master file) records from a ``.esp``/``.esm``/``.esl`` header.
 
         The method parses the binary TES4 record header and returns an ordered
@@ -150,6 +150,11 @@ class MO2Reader:
         return masters
 
     @staticmethod
+    def read_esp_masters(esp_path: Path) -> list[str]:
+        """Backward compatible wrapper for :py:meth:`_read_esp_masters`."""
+        return MO2Reader._read_esp_masters(esp_path)
+
+    @staticmethod
     def _collect_mod_masters(
         mods_folder: Path, mod_name: str,
     ) -> list[str]:
@@ -161,7 +166,7 @@ class MO2Reader:
         seen: set[str] = set()
         for ext in ("*.esp", "*.esm", "*.esl"):
             for plugin_path in mod_dir.glob(ext):
-                for m in MO2Reader.read_esp_masters(plugin_path):
+                for m in MO2Reader._read_esp_masters(plugin_path):
                     key = m.lower()
                     if key not in seen:
                         seen.add(key)
@@ -192,7 +197,7 @@ class MO2Reader:
                     enabled=True,
                     nexus_id=meta["nexus_id"],
                     version=meta["version"],
-                    esp_masters=masters,
+                    masters=masters,
                 ))
             elif line.startswith("-"):
                 mod_name = line[1:]
@@ -203,7 +208,7 @@ class MO2Reader:
                     enabled=False,
                     nexus_id=meta["nexus_id"],
                     version=meta["version"],
-                    esp_masters=masters,
+                    masters=masters,
                 ))
         return mods
 
@@ -242,7 +247,7 @@ class MO2Reader:
             Optional path to the MO2 *mods* directory.  When provided, each
             mod's ``.esp``/``.esm``/``.esl`` plugins are scanned for MAST
             records and the results are stored in
-            :py:attr:`InstalledMod.esp_masters`.
+            :py:attr:`InstalledMod.masters`.
         """
         folder = Path(mods_folder) if mods_folder else None
         mods = cls._read_modlist(Path(modlist_path), mods_folder=folder)
