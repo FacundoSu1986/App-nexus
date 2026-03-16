@@ -266,16 +266,12 @@ def analyse_and_cache_mod(
 # Conversational chat with function calling
 # ------------------------------------------------------------------
 
-CHAT_SYSTEM_PROMPT = (
-    "You are the expert assistant of App-nexus, a mod manager for "
-    "Skyrim SE/AE.\n"
-    "Your goal is to help the user diagnose compatibility problems "
-    "and missing dependencies.\n"
-    "If asked about a mod, ALWAYS use the available tools to search "
-    "the local database before responding.\n"
-    "Be direct, technical and friendly. Do not talk about other games.\n"
-    "Only answer questions related to Skyrim modding."
-)
+CHAT_SYSTEM_PROMPT = """You are the technical diagnostics agent for App-nexus (Skyrim SE/AE).
+CRITICAL RULES:
+1. NEVER guess or invent tools (e.g., do not suggest fictional tools like 'BSA Merge Tool').
+2. If the user asks about a mod, you MUST use the provided tools (search_mod_in_db, get_mod_requirements, get_loot_warnings) to retrieve facts before answering.
+3. If the tools return no data, explicitly state that the information is not in the local database. Do not hallucinate dependencies.
+4. Always structure your tool calls properly. Do not output raw JSON tool calls as text."""
 
 CHAT_TOOLS = [
     {

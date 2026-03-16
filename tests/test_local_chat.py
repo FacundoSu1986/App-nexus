@@ -1,8 +1,5 @@
 """Tests for local_agent.chat (Ollama function calling)."""
 
-import json
-
-import pytest
 from unittest.mock import patch, MagicMock
 
 from src.ai.local_agent import chat, CHAT_TOOLS, CHAT_SYSTEM_PROMPT
@@ -10,6 +7,14 @@ from src.ai.local_agent import chat, CHAT_TOOLS, CHAT_SYSTEM_PROMPT
 
 class TestLocalChat:
     """Test the local_agent.chat function with tool calling."""
+
+    def test_chat_system_prompt_enforces_tools(self):
+        """The system prompt must force tool use and forbid hallucinations."""
+        assert "CRITICAL RULES" in CHAT_SYSTEM_PROMPT
+        assert "NEVER guess or invent tools" in CHAT_SYSTEM_PROMPT
+        for required in ("search_mod_in_db", "get_mod_requirements", "get_loot_warnings"):
+            assert required in CHAT_SYSTEM_PROMPT
+        assert "tool calls properly" in CHAT_SYSTEM_PROMPT
 
     @patch("src.ai.local_agent._import_ollama")
     def test_simple_reply_without_tool_calls(self, mock_import):

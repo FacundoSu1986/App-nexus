@@ -121,32 +121,49 @@ class MO2Reader:
         """
         if not esp_path.is_file():
             return []
+
+        masters: list[str] = []
         try:
-            with open(esp_path, "rb") as fh:
-                # TES4 record header: type(4) + datasize(4) + flags(4)
-                #   + formid(4) + vc(4) + formver(2) + unk(2) = 24 bytes
-                header = fh.read(24)
-                if len(header) < 24 or header[:4] != b"TES4":
+            with open(esp_path, "rb") as f:
+                # Read standard 24-byte Bethesda TES4 record header
+                record_type = f.read(4)
+                if record_type != b"TES4":
                     return []
-                data_size = struct.unpack_from("<I", header, 4)[0]
-                data = fh.read(data_size)
+
+                data_size_bytes = f.read(4)
+                if len(data_size_bytes) < 4:
+                    return []
+                data_size = struct.unpack("<I", data_size_bytes)[0]
+
+                # Skip the remaining TES4 header fields (flags, formid, etc.)
+                header_rest = f.read(16)
+                if len(header_rest) < 16:
+                    return []
+
+                data = f.read(data_size)
         except OSError:
             return []
 
-        masters: list[str] = []
         offset = 0
         while offset + 6 <= len(data):
             sub_type = data[offset: offset + 4]
-            sub_size = struct.unpack_from("<H", data, offset + 4)[0]
+            sub_size_bytes = data[offset + 4: offset + 6]
+            if len(sub_size_bytes) < 2:
+                break
+            sub_size = struct.unpack("<H", sub_size_bytes)[0]
             offset += 6
+
             if offset + sub_size > len(data):
                 break
+
             if sub_type == b"MAST":
                 raw = data[offset: offset + sub_size]
                 name = raw.rstrip(b"\x00").decode("utf-8", errors="replace")
                 if name:
                     masters.append(name)
+
             offset += sub_size
+
         return masters
 
     @staticmethod
