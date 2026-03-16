@@ -185,3 +185,54 @@ class TestNormalisation:
         assert normalised["author"] == "author_name"
         assert normalised["summary"] == "A short description"
         assert f"/{SKYRIM_SE_DOMAIN}/mods/" in normalised["mod_url"]
+
+
+class TestQuotaTracking:
+    """Verify that daily_quota_remaining is updated from response headers."""
+
+    def test_default_quota_is_unknown(self, api):
+        assert api.daily_quota_remaining == "Unknown"
+
+    @responses_lib.activate
+    def test_quota_updated_from_response_headers(self, api):
+        url = f"{BASE_URL}/users/validate.json"
+        responses_lib.add(
+            responses_lib.GET,
+            url,
+            json={"name": "Tester"},
+            status=200,
+            headers={
+                "x-rl-daily-remaining": "95",
+                "x-rl-hourly-remaining": "45",
+            },
+        )
+        api.validate_api_key()
+        assert api.daily_quota_remaining == "Daily: 95 | Hourly: 45"
+
+    @responses_lib.activate
+    def test_quota_missing_headers_shows_question_marks(self, api):
+        url = f"{BASE_URL}/users/validate.json"
+        responses_lib.add(
+            responses_lib.GET,
+            url,
+            json={"name": "Tester"},
+            status=200,
+        )
+        api.validate_api_key()
+        assert api.daily_quota_remaining == "Daily: ? | Hourly: ?"
+
+    @responses_lib.activate
+    def test_quota_updated_on_mod_fetch(self, api):
+        url = f"{BASE_URL}/games/{SKYRIM_SE_DOMAIN}/mods/3328.json"
+        responses_lib.add(
+            responses_lib.GET,
+            url,
+            json=SAMPLE_MOD,
+            status=200,
+            headers={
+                "x-rl-daily-remaining": "80",
+                "x-rl-hourly-remaining": "30",
+            },
+        )
+        api.get_mod(3328)
+        assert api.daily_quota_remaining == "Daily: 80 | Hourly: 30"

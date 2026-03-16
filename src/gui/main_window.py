@@ -272,13 +272,21 @@ class MainWindow(tk.Tk):
             padding=(4, 2),
         ).grid(row=0, column=0, sticky="ew")
 
+        self._quota_var = tk.StringVar(value="Quota: Unknown")
+        ttk.Label(
+            status_frame,
+            textvariable=self._quota_var,
+            anchor="e",
+            padding=(4, 2),
+        ).grid(row=0, column=1, sticky="e")
+
         ttk.Label(
             status_frame,
             text="Masterlist data: LOOT (loot.github.io) — CC BY-NC-SA 4.0",
             anchor="e",
             foreground="grey",
             padding=(4, 2),
-        ).grid(row=0, column=1, sticky="e")
+        ).grid(row=0, column=2, sticky="e")
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -356,6 +364,7 @@ class MainWindow(tk.Tk):
             name = info.get("name", "unknown user")
             messagebox.showinfo("API Key Valid", f"Authenticated as: {name}")
             self._api = api
+            self._quota_var.set(f"Quota: {self._api.daily_quota_remaining}")
             self._set_status(f"API key valid — logged in as {name}.")
             logger.info("API key validated for user: %s", name)
         except Exception as exc:
@@ -409,7 +418,7 @@ class MainWindow(tk.Tk):
         if self._profile is None:
             return
         statuses = (
-            compute_mod_statuses(self._last_report, self._profile.mods)
+            compute_mod_statuses(self._last_report, self._profile.mods, db=self._db)
             if self._last_report is not None
             else {}
         )
@@ -423,6 +432,8 @@ class MainWindow(tk.Tk):
                     tag = "status_ok"
                 elif status == "⚠ WARN":
                     tag = "status_warn"
+                elif status == "⚠ UPDATE":
+                    tag = "status_update"
                 elif status == "✘ ERROR":
                     tag = "status_error"
                 else:
@@ -430,6 +441,7 @@ class MainWindow(tk.Tk):
             self._mod_list.insert("", tk.END, values=(mod.name, status), tags=(tag,))
         self._mod_list.tag_configure("status_ok", foreground="#4CAF50")
         self._mod_list.tag_configure("status_warn", foreground="#FFA500")
+        self._mod_list.tag_configure("status_update", foreground="#FFA500")
         self._mod_list.tag_configure("status_error", foreground="#F44336")
         self._mod_list.tag_configure("disabled", foreground="grey")
 
@@ -538,6 +550,8 @@ class MainWindow(tk.Tk):
     def _finish_sync(self) -> None:
         """Helper to cleanly finish the sync process on the main thread."""
         self._set_status("Sync complete.")
+        if self._api is not None:
+            self._quota_var.set(f"Quota: {self._api.daily_quota_remaining}")
         self._populate_mod_list()
         self._btn_sync.config(state="normal")
         self._btn_analyse.config(state="normal")
