@@ -190,7 +190,7 @@ class TestAnalyseAndCacheMod:
         assert call_args["last_analyzed"] != ""
 
     @patch("src.ai.local_agent._import_ollama")
-    def test_ollama_failure_returns_defaults_and_still_caches(self, mock_import):
+    def test_ollama_failure_returns_defaults_without_caching(self, mock_import):
         mock_ollama = MagicMock()
         mock_ollama.chat.side_effect = Exception("Connection refused")
         mock_import.return_value = mock_ollama
@@ -208,8 +208,8 @@ class TestAnalyseAndCacheMod:
         assert result["patches"] == []
         assert result["known_issues"] == []
         assert result["load_order"] == []
-        # Should still cache the empty result
-        mock_db.upsert_ai_analysis.assert_called_once()
+        # Do not cache a failed analysis
+        mock_db.upsert_ai_analysis.assert_not_called()
 
     @patch("src.ai.local_agent._import_ollama")
     def test_empty_inputs(self, mock_import):
@@ -241,7 +241,8 @@ class TestAnalyseAndCacheMod:
             "known_issues": [],
             "load_order": [],
         }
-        mock_db.upsert_ai_analysis.assert_called_once()
+        mock_db.upsert_ai_analysis.assert_not_called()
+        mock_import.assert_not_called()
 
 
 class TestChatToolCalling:

@@ -202,6 +202,20 @@ def analyse_and_cache_mod(
         The parsed analysis result with keys ``requirements``, ``patches``,
         ``known_issues``, ``load_order``.
     """
+    default_result = {
+        "requirements": [],
+        "patches": [],
+        "known_issues": [],
+        "load_order": [],
+    }
+
+    if not description and not sticky_posts:
+        logger.info(
+            "Skipping cached analysis for %s: no description or sticky posts.",
+            nexus_id,
+        )
+        return default_result
+
     ollama = _import_ollama()
 
     parts = []
@@ -231,12 +245,7 @@ def analyse_and_cache_mod(
         result = _parse_response(raw_text)
     except Exception as exc:
         logger.error("Ollama cached analysis failed for %s: %s", nexus_id, exc)
-        result = {
-            "requirements": [],
-            "patches": [],
-            "known_issues": [],
-            "load_order": [],
-        }
+        return default_result
 
     analysis_record = {
         "nexus_id": str(nexus_id),
