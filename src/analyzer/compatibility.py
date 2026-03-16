@@ -100,6 +100,25 @@ def _mod_in_list(mod_name: str, name_list: list) -> bool:
     return False
 
 
+def _missing_master_requirements(mod, load_order_lower: set[str]) -> list[dict]:
+    """Return missing master plugin requirements for *mod*."""
+    missing: list[dict] = []
+    for master in mod.masters:
+        master_lower = master.lower()
+        if master_lower in _IGNORED_MASTERS:
+            continue
+        if master_lower not in load_order_lower:
+            missing.append(
+                {
+                    "mod_name": mod.name,
+                    "required_name": master,
+                    "required_url": "Local Plugin Dependency",
+                    "is_patch": False,
+                }
+            )
+    return missing
+
+
 class CompatibilityAnalyzer:
     """Compares the user's installed mods against the cached database rules."""
 
@@ -122,19 +141,9 @@ class CompatibilityAnalyzer:
         loot_warnings: list = []
 
         for mod in profile.enabled_mods:
-            for master in mod.masters:
-                master_lower = master.lower()
-                if master_lower in _IGNORED_MASTERS:
-                    continue
-                if master_lower not in load_order_lower:
-                    missing_requirements.append(
-                        {
-                            "mod_name": mod.name,
-                            "required_name": master,
-                            "required_url": "Local Plugin Dependency",
-                            "is_patch": False,
-                        }
-                    )
+            missing_requirements.extend(
+                _missing_master_requirements(mod, load_order_lower)
+            )
 
             db_results = self.db.search_mods_by_name(mod.name)
             if not db_results:
