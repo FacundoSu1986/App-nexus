@@ -369,6 +369,7 @@ class TestChatToolCalling:
         )
 
         assert reply == "No LOOT data for that plugin."
+        mock_db.search_loot_entries_by_name.assert_called_once_with("Missing.esp")
         # Verify the tool result message was appended with "not found" text
         tool_msgs = [m for m in history if isinstance(m, dict)
                      and m.get("role") == "tool"]
