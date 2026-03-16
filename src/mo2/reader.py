@@ -48,6 +48,16 @@ _VERSION_RE = re.compile(
 )
 
 
+def _safe_slice(buf: bytes, start: int, length: int) -> bytes | None:
+    """Return `length` bytes from `buf` starting at `start` or None if out-of-bounds."""
+    if start < 0:
+        return None
+    end = start + length
+    if end > len(buf):
+        return None
+    return buf[start:end]
+
+
 class MO2Reader:
     """Reads Mod Organizer 2 instance and profile data."""
 
@@ -121,14 +131,24 @@ class MO2Reader:
         """
         if not esp_path.is_file():
             return []
+
         try:
             with open(esp_path, "rb") as fh:
-                # TES4 record header: type(4) + datasize(4) + flags(4)
-                #   + formid(4) + vc(4) + formver(2) + unk(2) = 24 bytes
-                header = fh.read(24)
-                if len(header) < 24 or header[:4] != b"TES4":
+                # Read standard 24-byte Bethesda TES4 record header
+                record_type = fh.read(4)
+                if record_type != b"TES4":
                     return []
-                data_size = struct.unpack_from("<I", header, 4)[0]
+
+                data_size_bytes = fh.read(4)
+                if len(data_size_bytes) < 4:
+                    return []
+                data_size = struct.unpack("<I", data_size_bytes)[0]
+
+                # Skip the remaining TES4 header fields (flags, formid, etc.)
+                header_rest = fh.read(16)
+                if len(header_rest) < 16:
+                    return []
+
                 data = fh.read(data_size)
         except OSError:
             return []
@@ -136,17 +156,24 @@ class MO2Reader:
         masters: list[str] = []
         offset = 0
         while offset + 6 <= len(data):
-            sub_type = data[offset: offset + 4]
-            sub_size = struct.unpack_from("<H", data, offset + 4)[0]
-            offset += 6
-            if offset + sub_size > len(data):
+            sub_type = _safe_slice(data, offset, 4)
+            sub_size_bytes = _safe_slice(data, offset + 4, 2)
+            if sub_type is None or sub_size_bytes is None:
                 break
+            sub_size = struct.unpack("<H", sub_size_bytes)[0]
+            offset += 6
+
+            master_name_bytes = _safe_slice(data, offset, sub_size)
+            if master_name_bytes is None:
+                break
+
             if sub_type == b"MAST":
-                raw = data[offset: offset + sub_size]
-                name = raw.rstrip(b"\x00").decode("utf-8", errors="replace")
+                name = master_name_bytes.rstrip(b"\x00").decode("utf-8", errors="replace")
                 if name:
                     masters.append(name)
+
             offset += sub_size
+
         return masters
 
     @staticmethod
