@@ -60,6 +60,13 @@ if TYPE_CHECKING:
 # named "SkyUI" matches the plugin "SkyUI.esp" in the load order.
 _SIMILARITY_THRESHOLD = 0.82
 _PLUGIN_EXTS = frozenset({".esp", ".esm", ".esl"})
+_IGNORED_MASTERS = frozenset({
+    "skyrim.esm",
+    "update.esm",
+    "dawnguard.esm",
+    "hearthfires.esm",
+    "dragonborn.esm",
+})
 
 
 def _strip_plugin_ext(name: str) -> str:
@@ -109,11 +116,26 @@ class CompatibilityAnalyzer:
             The MO2 profile to analyse.
         """
         enabled_names = profile.enabled_mod_names
+        load_order_lower = {name.lower() for name in profile.load_order}
         missing_requirements: list = []
         loot_incompatibilities: list = []
         loot_warnings: list = []
 
         for mod in profile.enabled_mods:
+            for master in getattr(mod, "masters", []):
+                master_lower = master.lower()
+                if master_lower in _IGNORED_MASTERS:
+                    continue
+                if master_lower not in load_order_lower:
+                    missing_requirements.append(
+                        {
+                            "mod_name": mod.name,
+                            "required_name": master,
+                            "required_url": "Local Plugin Dependency",
+                            "is_patch": False,
+                        }
+                    )
+
             db_results = self.db.search_mods_by_name(mod.name)
             if not db_results:
                 continue

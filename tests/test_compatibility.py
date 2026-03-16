@@ -45,8 +45,16 @@ def db(tmp_path):
     manager.close()
 
 
-def _make_profile(mod_names: list, load_order: list = None) -> MO2Profile:
-    mods = [InstalledMod(name=n, enabled=True) for n in mod_names]
+def _make_profile(
+    mod_names: list,
+    load_order: list = None,
+    masters: dict[str, list[str]] | None = None,
+) -> MO2Profile:
+    masters = masters or {}
+    mods = [
+        InstalledMod(name=n, enabled=True, masters=masters.get(n, []))
+        for n in mod_names
+    ]
     return MO2Profile(
         profile_name="Test",
         mods=mods,
@@ -108,6 +116,40 @@ class TestMissingRequirements:
         report = analyzer.analyse(profile)
         assert report["stats"]["missing_patches"] == 1
         assert report["missing_requirements"][0]["is_patch"] is True
+
+    def test_detects_missing_local_master_plugin(self, db):
+        profile = _make_profile(
+            ["MyMod"],
+            load_order=["Present.esp"],
+            masters={"MyMod": ["MissingMaster.esm"]},
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        assert {
+            "mod_name": "MyMod",
+            "required_name": "MissingMaster.esm",
+            "required_url": "Local Plugin Dependency",
+            "is_patch": False,
+        } in report["missing_requirements"]
+
+    def test_ignores_base_game_masters(self, db):
+        profile = _make_profile(
+            ["MyMod"],
+            masters={"MyMod": ["Skyrim.esm", "Update.esm"]},
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        assert report["missing_requirements"] == []
+
+    def test_master_present_case_insensitive(self, db):
+        profile = _make_profile(
+            ["MyMod"],
+            load_order=["presentmaster.ESP"],
+            masters={"MyMod": ["PresentMaster.esp"]},
+        )
+        analyzer = CompatibilityAnalyzer(db)
+        report = analyzer.analyse(profile)
+        assert report["missing_requirements"] == []
 
 
 # ---------------------------------------------------------------------------
