@@ -268,7 +268,8 @@ def download_mod_file(
                     slow_btn.click()
 
                 download = download_info.value
-                dest = os.path.join(output_dir, download.suggested_filename)
+                filename = os.path.basename(download.suggested_filename)
+                dest = os.path.join(output_dir, filename)
                 download.save_as(dest)
                 abs_path = os.path.abspath(dest)
                 logger.info("Download saved to %s", abs_path)
