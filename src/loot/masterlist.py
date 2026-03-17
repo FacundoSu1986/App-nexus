@@ -109,14 +109,43 @@ def update_masterlist(db: "DatabaseManager") -> int:
 # ------------------------------------------------------------------
 
 _PLACEHOLDER_RE = re.compile(r"%\d+%")
+_TAG_RE = re.compile(r"^\[(say|warn|info)\]\s*", re.IGNORECASE)
 
 
-def clean_loot_message(text: str) -> str:
-    """Replace LOOT placeholder variables (``%1%``, ``%2%``, …) with a
-    human-readable fallback and collapse any resulting double spaces.
+def clean_loot_message(text: str | list | dict) -> str:
+    """Return a clean, human-readable string from a LOOT message.
+
+    Handles several raw formats that can appear in masterlist data:
+
+    * A plain string (returned cleaned).
+    * A ``list`` of dicts such as ``[{'lang': 'en', 'text': '…'}]`` –
+      the ``'text'`` value of the first English entry is extracted.
+    * A ``dict`` with a ``'text'`` key – the value is extracted.
+    * Leading ``[say]``, ``[warn]``, ``[info]`` tags are stripped.
+    * LOOT placeholder variables (``%1%``, ``%2%``, …) are replaced with
+      ``[see Nexus page]``, and resulting double-spaces are collapsed.
     """
+    # ── Unwrap list/dict structures ───────────────────────────────
+    if isinstance(text, list):
+        # e.g. [{'lang': 'en', 'text': '…'}, {'lang': 'fr', 'text': '…'}]
+        for item in text:
+            if isinstance(item, dict) and item.get("text"):
+                text = str(item["text"])
+                break
+        else:
+            # Fall back to stringifying the first element (or empty)
+            text = str(text[0]) if text else ""
+
+    if isinstance(text, dict):
+        text = str(text.get("text", "") or text.get("content", ""))
+
+    text = str(text)
+
+    # ── Strip leading [say] / [warn] / [info] tags ────────────────
+    text = _TAG_RE.sub("", text)
+
+    # ── Replace LOOT placeholders and tidy whitespace ─────────────
     cleaned = _PLACEHOLDER_RE.sub("[see Nexus page]", text)
-    # Collapse runs of whitespace that may result from replacement.
     cleaned = re.sub(r"  +", " ", cleaned)
     return cleaned.strip()
 
@@ -162,8 +191,14 @@ def _extract_messages(plugin: dict) -> list[str]:
             # Messages in the masterlist often use a structure like:
             #   - type: warn
             #     content: "Some warning text"
-            content = item.get("content", "")
+            # or the multi-language form:
+            #   - lang: en
+            #     text: "Some warning text"
+            content = item.get("content") or item.get("text", "")
             if content:
-                msg_type = item.get("type", "say")
-                msgs.append(clean_loot_message(f"[{msg_type}] {content}"))
+                msgs.append(clean_loot_message(str(content)))
+        elif isinstance(item, list):
+            # A list of language-specific dicts, e.g.
+            # [{'lang': 'en', 'text': '…'}, {'lang': 'fr', 'text': '…'}]
+            msgs.append(clean_loot_message(item))
     return msgs

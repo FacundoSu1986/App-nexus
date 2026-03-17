@@ -254,6 +254,11 @@ class MainWindow(tk.Tk):
         sb.grid(row=0, column=1, sticky="ns")
         self._report_text.configure(yscrollcommand=sb.set)
 
+        self._btn_export = ttk.Button(
+            report_frame, text="Export Report", command=self._export_report,
+        )
+        self._btn_export.grid(row=1, column=0, sticky="e", pady=(4, 0))
+
         # ── AI Chat tab ───────────────────────────────────────────────
         self._chat_panel = ChatPanel(notebook, db=self._db, padding=6)
         notebook.add(self._chat_panel, text="AI Chat")
@@ -595,6 +600,7 @@ class MainWindow(tk.Tk):
                 "No Mod List", "Please load your MO2 modlist.txt first."
             )
             return
+        self._set_text(self._report_text, "")
         analyser = CompatibilityAnalyzer(self._db)
         report = analyser.analyse(self._profile)
         self._last_report = report
@@ -924,6 +930,26 @@ class MainWindow(tk.Tk):
         self._db.close()
         self._db.connect()
         self._chat_panel.set_db(self._db)
+
+    def _export_report(self) -> None:
+        """Save the current analysis report to a text or Markdown file."""
+        content = self._report_text.get("1.0", tk.END).strip()
+        if not content:
+            messagebox.showinfo("Nothing to export", "Run an analysis first.")
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("Markdown files", "*.md"), ("All files", "*.*")],
+            title="Export Report",
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+            self._set_status(f"Report exported to {path}")
+        except OSError as exc:
+            messagebox.showerror("Export failed", str(exc))
 
     @staticmethod
     def _set_text(widget: tk.Text, text: str) -> None:

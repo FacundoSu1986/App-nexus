@@ -153,8 +153,13 @@ class TestExtractMessages:
     def test_dict_with_content(self):
         msgs = _extract_messages({"msg": [{"type": "warn", "content": "hello"}]})
         assert len(msgs) == 1
-        assert "[warn]" in msgs[0]
         assert "hello" in msgs[0]
+        assert "[warn]" not in msgs[0]
+
+    def test_dict_with_text_field(self):
+        msgs = _extract_messages({"msg": [{"lang": "en", "text": "Use this patch"}]})
+        assert len(msgs) == 1
+        assert msgs[0] == "Use this patch"
 
     def test_string_message(self):
         msgs = _extract_messages({"msg": ["plain text"]})
@@ -165,6 +170,13 @@ class TestExtractMessages:
 
     def test_non_list_returns_empty(self):
         assert _extract_messages({"msg": "single_string"}) == []
+
+    def test_nested_list_of_lang_dicts(self):
+        msgs = _extract_messages(
+            {"msg": [[{"lang": "en", "text": "English msg"}, {"lang": "fr", "text": "French"}]]}
+        )
+        assert len(msgs) == 1
+        assert msgs[0] == "English msg"
 
 
 class TestCleanLootMessage:
@@ -190,6 +202,37 @@ class TestCleanLootMessage:
     def test_adjacent_placeholders_no_double_space(self):
         result = clean_loot_message("%1% %2%")
         assert result == "[see Nexus page] [see Nexus page]"
+
+    def test_strips_say_tag(self):
+        assert clean_loot_message("[say] Some advice.") == "Some advice."
+
+    def test_strips_warn_tag(self):
+        assert clean_loot_message("[warn] Needs a patch.") == "Needs a patch."
+
+    def test_strips_info_tag(self):
+        assert clean_loot_message("[info] For information.") == "For information."
+
+    def test_strips_tag_case_insensitive(self):
+        assert clean_loot_message("[WARN] Upper-case tag.") == "Upper-case tag."
+
+    def test_list_of_lang_dicts(self):
+        result = clean_loot_message([{"lang": "en", "text": "English warning"}])
+        assert result == "English warning"
+
+    def test_dict_with_text(self):
+        result = clean_loot_message({"lang": "en", "text": "Hello world"})
+        assert result == "Hello world"
+
+    def test_dict_with_content(self):
+        result = clean_loot_message({"content": "Some content"})
+        assert result == "Some content"
+
+    def test_list_fallback_to_first_element(self):
+        result = clean_loot_message(["plain string msg"])
+        assert result == "plain string msg"
+
+    def test_empty_list(self):
+        assert clean_loot_message([]) == ""
 
     def test_extract_messages_cleans_placeholders(self):
         """Verify _extract_messages applies cleaning."""
