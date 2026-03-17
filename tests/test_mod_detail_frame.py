@@ -1,8 +1,11 @@
-"""Tests for clean_bbcode() in src/gui/mod_detail_frame."""
+"""Tests for clean_bbcode() and get_resource_path() in src/gui/mod_detail_frame."""
+
+import os
+import sys
 
 import pytest
 
-from src.gui.mod_detail_frame import clean_bbcode
+from src.gui.mod_detail_frame import clean_bbcode, get_resource_path
 
 
 class TestCleanBBCode:
@@ -95,3 +98,27 @@ class TestCleanBBCode:
 
     def test_empty_string(self):
         assert clean_bbcode("") == ""
+
+
+class TestGetResourcePath:
+    """Unit tests for the PyInstaller-compatible resource path helper."""
+
+    def test_returns_absolute_path_in_dev(self):
+        result = get_resource_path("logo.png")
+        assert os.path.isabs(result)
+        assert result.endswith("logo.png")
+
+    def test_uses_meipass_when_set(self, monkeypatch):
+        monkeypatch.setattr(sys, "_MEIPASS", "/tmp/fake_meipass")
+        result = get_resource_path("logo.png")
+        assert result == os.path.join("/tmp/fake_meipass", "logo.png")
+
+    def test_falls_back_to_cwd_without_meipass(self, monkeypatch):
+        monkeypatch.delattr(sys, "_MEIPASS", raising=False)
+        result = get_resource_path("logo.png")
+        expected = os.path.join(os.path.abspath("."), "logo.png")
+        assert result == expected
+
+    def test_handles_subdirectory_path(self):
+        result = get_resource_path(os.path.join("assets", "logo.png"))
+        assert result.endswith(os.path.join("assets", "logo.png"))

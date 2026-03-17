@@ -7,11 +7,22 @@ mod list, including its description and requirements.
 
 import os
 import re
+import sys
 import tkinter as tk
 from tkinter import ttk
 import webbrowser
 
 from PIL import Image, ImageTk
+
+
+def get_resource_path(relative_path: str) -> str:
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 
 def clean_bbcode(text: str) -> str:
@@ -91,7 +102,7 @@ class ModDetailFrame(ttk.Frame):
             justify="center",
         )
 
-        image_path = "logo.png"
+        image_path = get_resource_path("logo.png")
         if os.path.exists(image_path):
             try:
                 img = Image.open(image_path)
