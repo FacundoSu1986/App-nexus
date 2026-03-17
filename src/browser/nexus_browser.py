@@ -11,6 +11,7 @@ using the user's own authenticated session.
 """
 
 import logging
+import os
 import random
 from typing import Optional
 
@@ -37,6 +38,10 @@ def _import_playwright():
 
 
 MOD_PAGE_URL = "https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}"
+DOWNLOAD_PAGE_URL = (
+    "https://www.nexusmods.com/skyrimspecialedition/mods/{nexus_id}"
+    "?tab=files&file_id={file_id}"
+)
 
 
 def _human_delay() -> int:
@@ -185,3 +190,106 @@ def extract_mod_page_data(
             context.close()
 
     return result
+
+
+def download_mod_file(
+    nexus_id: str,
+    file_id: str,
+    output_dir: str,
+    user_data_dir: Optional[str] = None,
+    headless: bool = True,
+) -> Optional[str]:
+    """
+    Download a mod archive from Nexus Mods using the free-user slow download.
+
+    Parameters
+    ----------
+    nexus_id : str
+        The Nexus Mods mod ID (e.g. ``"2347"``).
+    file_id : str
+        The Nexus Mods file ID for the specific archive.
+    output_dir : str
+        Directory where the downloaded file will be saved.
+        Created automatically if it does not exist.
+    user_data_dir : str | None
+        Path to a Chromium user-data directory that holds the user's
+        authenticated session cookies.  When *None* the default profile
+        is used (may not be logged in).
+    headless : bool
+        Whether to run the browser in headless mode.
+
+    Returns
+    -------
+    str | None
+        Absolute path of the downloaded file, or ``None`` on failure.
+    """
+    sp = _import_playwright()
+    url = DOWNLOAD_PAGE_URL.format(nexus_id=nexus_id, file_id=file_id)
+    slow_mo = _human_delay()
+    logger.info("Navigating to download page %s (slow_mo=%d ms)", url, slow_mo)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    with sp() as pw:
+        launch_kwargs: dict = {
+            "headless": headless,
+            "slow_mo": slow_mo,
+        }
+        if user_data_dir:
+            context = pw.chromium.launch_persistent_context(
+                user_data_dir,
+                **launch_kwargs,
+            )
+            page = context.new_page()
+        else:
+            browser = pw.chromium.launch(**launch_kwargs)
+            context = browser.new_context()
+            page = context.new_page()
+
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+
+            slow_btn = page.query_selector(
+                "a:has-text('Slow download'), "
+                "button:has-text('Slow'), "
+                "#slowDownloadButton"
+            )
+            if not slow_btn:
+                logger.warning(
+                    "Slow Download button not found on page for mod %s file %s",
+                    nexus_id,
+                    file_id,
+                )
+                return None
+
+            logger.info("Waiting for Nexus 5-second countdown...")
+            try:
+                with page.expect_download(timeout=60000) as download_info:
+                    slow_btn.click()
+
+                download = download_info.value
+                dest = os.path.join(output_dir, download.suggested_filename)
+                download.save_as(dest)
+                abs_path = os.path.abspath(dest)
+                logger.info("Download saved to %s", abs_path)
+                return abs_path
+            except Exception as exc:
+                logger.warning(
+                    "Download failed for mod %s file %s: %s",
+                    nexus_id,
+                    file_id,
+                    exc,
+                )
+                return None
+
+        except Exception as exc:
+            logger.warning(
+                "Error navigating to download page for mod %s file %s: %s",
+                nexus_id,
+                file_id,
+                exc,
+            )
+            return None
+        finally:
+            page.close()
+            context.close()
