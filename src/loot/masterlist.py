@@ -112,7 +112,7 @@ _PLACEHOLDER_RE = re.compile(r"%\d+%")
 _TAG_RE = re.compile(r"^\[(say|warn|info)\]\s*", re.IGNORECASE)
 
 
-def clean_loot_message(text) -> str:
+def clean_loot_message(text: str | list | dict) -> str:
     """Return a clean, human-readable string from a LOOT message.
 
     Handles several raw formats that can appear in masterlist data:
