@@ -251,7 +251,7 @@ class TestCleanLootMessage:
     def test_string_repr_invalid_syntax_passthrough(self):
         raw = "[{'lang': 'en', 'text': broken"
         result = clean_loot_message(raw)
-        assert result  # should not crash, just pass through
+        assert result == raw  # invalid syntax passes through unchanged
 
     def test_extract_messages_cleans_placeholders(self):
         """Verify _extract_messages applies cleaning."""
