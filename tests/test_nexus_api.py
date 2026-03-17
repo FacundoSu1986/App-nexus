@@ -188,10 +188,11 @@ class TestNormalisation:
 
 
 class TestQuotaTracking:
-    """Verify that daily_quota_remaining is updated from response headers."""
+    """Verify that daily_quota_remaining and hourly_quota_remaining are updated from response headers."""
 
     def test_default_quota_is_unknown(self, api):
         assert api.daily_quota_remaining == "Unknown"
+        assert api.hourly_quota_remaining == "Unknown"
 
     @responses_lib.activate
     def test_quota_updated_from_response_headers(self, api):
@@ -207,10 +208,11 @@ class TestQuotaTracking:
             },
         )
         api.validate_api_key()
-        assert api.daily_quota_remaining == "Daily: 95 | Hourly: 45"
+        assert api.daily_quota_remaining == "95"
+        assert api.hourly_quota_remaining == "45"
 
     @responses_lib.activate
-    def test_quota_missing_headers_shows_question_marks(self, api):
+    def test_quota_missing_headers_shows_unknown(self, api):
         url = f"{BASE_URL}/users/validate.json"
         responses_lib.add(
             responses_lib.GET,
@@ -219,7 +221,8 @@ class TestQuotaTracking:
             status=200,
         )
         api.validate_api_key()
-        assert api.daily_quota_remaining == "Daily: ? | Hourly: ?"
+        assert api.daily_quota_remaining == "Unknown"
+        assert api.hourly_quota_remaining == "Unknown"
 
     @responses_lib.activate
     def test_quota_updated_on_mod_fetch(self, api):
@@ -235,4 +238,5 @@ class TestQuotaTracking:
             },
         )
         api.get_mod(3328)
-        assert api.daily_quota_remaining == "Daily: 80 | Hourly: 30"
+        assert api.daily_quota_remaining == "80"
+        assert api.hourly_quota_remaining == "30"

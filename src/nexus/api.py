@@ -52,6 +52,7 @@ class NexusAPI:
         self.api_key = api_key
         self.game_domain = game_domain
         self.daily_quota_remaining: str = "Unknown"
+        self.hourly_quota_remaining: str = "Unknown"
         self._session: Session = requests.Session()
         self._session.headers.update(
             {
@@ -101,9 +102,8 @@ class NexusAPI:
 
         logger.info("Response status=%d for %s", response.status_code, url)
 
-        daily = response.headers.get("x-rl-daily-remaining", "?")
-        hourly = response.headers.get("x-rl-hourly-remaining", "?")
-        self.daily_quota_remaining = f"Daily: {daily} | Hourly: {hourly}"
+        self.daily_quota_remaining = str(response.headers.get("x-rl-daily-remaining", "Unknown"))
+        self.hourly_quota_remaining = str(response.headers.get("x-rl-hourly-remaining", "Unknown"))
 
         if response.status_code == 429:
             logger.error("Rate limit reached for %s", url)
