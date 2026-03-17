@@ -10,6 +10,7 @@ Masterlist data: LOOT (loot.github.io) — CC BY-NC-SA 4.0
 
 from __future__ import annotations
 
+import ast
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -109,7 +110,7 @@ def update_masterlist(db: "DatabaseManager") -> int:
 # ------------------------------------------------------------------
 
 _PLACEHOLDER_RE = re.compile(r"%\d+%")
-_TAG_RE = re.compile(r"^\[(say|warn|info)\]\s*", re.IGNORECASE)
+_TAG_RE = re.compile(r"^\[(say|warn|info|error)\]\s*", re.IGNORECASE)
 
 
 def clean_loot_message(text: str | list | dict) -> str:
@@ -121,7 +122,7 @@ def clean_loot_message(text: str | list | dict) -> str:
     * A ``list`` of dicts such as ``[{'lang': 'en', 'text': '…'}]`` –
       the ``'text'`` value of the first English entry is extracted.
     * A ``dict`` with a ``'text'`` key – the value is extracted.
-    * Leading ``[say]``, ``[warn]``, ``[info]`` tags are stripped.
+    * Leading ``[say]``, ``[warn]``, ``[info]``, ``[error]`` tags are stripped.
     * LOOT placeholder variables (``%1%``, ``%2%``, …) are replaced with
       ``[see Nexus page]``, and resulting double-spaces are collapsed.
     """
@@ -140,6 +141,21 @@ def clean_loot_message(text: str | list | dict) -> str:
         text = str(text.get("text", "") or text.get("content", ""))
 
     text = str(text)
+
+    # ── Parse string representations of list/dict ─────────────────
+    stripped = text.strip()
+    if stripped.startswith(("[{", "{")):
+        try:
+            parsed = ast.literal_eval(stripped)
+            if isinstance(parsed, list):
+                for item in parsed:
+                    if isinstance(item, dict) and item.get("text"):
+                        text = str(item["text"])
+                        break
+            elif isinstance(parsed, dict) and parsed.get("text"):
+                text = str(parsed["text"])
+        except (ValueError, SyntaxError):
+            pass
 
     # ── Strip leading [say] / [warn] / [info] tags ────────────────
     text = _TAG_RE.sub("", text)
