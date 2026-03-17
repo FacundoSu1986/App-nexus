@@ -321,6 +321,16 @@ class MainWindow(tk.Tk):
         except tk.TclError:
             pass
 
+    def _update_quota_display(self) -> None:
+        """Safely refresh the status-bar quota label from the current API instance."""
+        if self._api is None:
+            return
+        quota_text = (
+            f"API Quota: Daily {self._api.daily_quota_remaining}"
+            f" | Hourly {self._api.hourly_quota_remaining}"
+        )
+        self.after(0, self._quota_var.set, quota_text)
+
     def _toggle_theme(self) -> None:
         """Switch between dark and light sv-ttk themes."""
         sv_ttk.toggle_theme()
@@ -342,8 +352,7 @@ class MainWindow(tk.Tk):
             name = info.get("name", "unknown user")
             messagebox.showinfo("API Key Valid", f"Authenticated as: {name}")
             self._api = api
-            self.after(0, self._quota_var.set,
-                       f"API Quota: Daily {self._api.daily_quota_remaining} | Hourly {self._api.hourly_quota_remaining}")
+            self._update_quota_display()
             self._set_status(f"API key valid — logged in as {name}.")
             logger.info("API key validated for user: %s", name)
         except Exception as exc:
@@ -530,8 +539,7 @@ class MainWindow(tk.Tk):
         """Helper to cleanly finish the sync process on the main thread."""
         self._set_status("Sync complete.")
         if self._api is not None:
-            self.after(0, self._quota_var.set,
-                       f"API Quota: Daily {self._api.daily_quota_remaining} | Hourly {self._api.hourly_quota_remaining}")
+            self._update_quota_display()
         self._populate_mod_list()
         self._btn_sync.config(state="normal")
         self._btn_analyse.config(state="normal")
