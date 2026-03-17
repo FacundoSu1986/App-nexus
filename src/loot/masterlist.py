@@ -10,6 +10,7 @@ Masterlist data: LOOT (loot.github.io) — CC BY-NC-SA 4.0
 
 from __future__ import annotations
 
+import ast
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -109,7 +110,20 @@ def update_masterlist(db: "DatabaseManager") -> int:
 # ------------------------------------------------------------------
 
 _PLACEHOLDER_RE = re.compile(r"%\d+%")
-_TAG_RE = re.compile(r"^\[(say|warn|info)\]\s*", re.IGNORECASE)
+_TAG_RE = re.compile(r"^\[(say|warn|info|error)\]\s*", re.IGNORECASE)
+
+
+def _extract_text_value(obj: list | dict) -> str | None:
+    """Return the 'text' value from a list of lang-dicts or a single dict."""
+    if isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, dict) and item.get("text"):
+                return str(item["text"])
+    elif isinstance(obj, dict):
+        val = obj.get("text", "") or obj.get("content", "")
+        if val:
+            return str(val)
+    return None
 
 
 def clean_loot_message(text: str | list | dict) -> str:
@@ -121,27 +135,34 @@ def clean_loot_message(text: str | list | dict) -> str:
     * A ``list`` of dicts such as ``[{'lang': 'en', 'text': '…'}]`` –
       the ``'text'`` value of the first English entry is extracted.
     * A ``dict`` with a ``'text'`` key – the value is extracted.
-    * Leading ``[say]``, ``[warn]``, ``[info]`` tags are stripped.
+    * Leading ``[say]``, ``[warn]``, ``[info]``, ``[error]`` tags are stripped.
     * LOOT placeholder variables (``%1%``, ``%2%``, …) are replaced with
       ``[see Nexus page]``, and resulting double-spaces are collapsed.
     """
     # ── Unwrap list/dict structures ───────────────────────────────
-    if isinstance(text, list):
-        # e.g. [{'lang': 'en', 'text': '…'}, {'lang': 'fr', 'text': '…'}]
-        for item in text:
-            if isinstance(item, dict) and item.get("text"):
-                text = str(item["text"])
-                break
-        else:
-            # Fall back to stringifying the first element (or empty)
+    if isinstance(text, (list, dict)):
+        extracted = _extract_text_value(text)
+        if extracted is not None:
+            text = extracted
+        elif isinstance(text, list):
             text = str(text[0]) if text else ""
-
-    if isinstance(text, dict):
-        text = str(text.get("text", "") or text.get("content", ""))
+        else:
+            text = ""
 
     text = str(text)
 
-    # ── Strip leading [say] / [warn] / [info] tags ────────────────
+    # ── Parse string representations of list/dict ─────────────────
+    stripped = text.strip()
+    if stripped.startswith(("[{", "{")):
+        try:
+            parsed = ast.literal_eval(stripped)
+            extracted = _extract_text_value(parsed)
+            if extracted is not None:
+                text = extracted
+        except (ValueError, SyntaxError):
+            pass
+
+    # ── Strip leading [say] / [warn] / [info] / [error] tags ─────
     text = _TAG_RE.sub("", text)
 
     # ── Replace LOOT placeholders and tidy whitespace ─────────────

@@ -234,6 +234,25 @@ class TestCleanLootMessage:
     def test_empty_list(self):
         assert clean_loot_message([]) == ""
 
+    def test_strips_error_tag(self):
+        assert clean_loot_message("[error] Critical problem.") == "Critical problem."
+
+    def test_strips_error_tag_case_insensitive(self):
+        assert clean_loot_message("[ERROR] Upper-case error.") == "Upper-case error."
+
+    def test_string_repr_of_list_dict(self):
+        raw = "[{'lang': 'en', 'text': 'Install the patch'}]"
+        assert clean_loot_message(raw) == "Install the patch"
+
+    def test_string_repr_of_dict(self):
+        raw = "{'lang': 'en', 'text': 'Some warning'}"
+        assert clean_loot_message(raw) == "Some warning"
+
+    def test_string_repr_invalid_syntax_passthrough(self):
+        raw = "[{'lang': 'en', 'text': broken"
+        result = clean_loot_message(raw)
+        assert result == raw  # invalid syntax passes through unchanged
+
     def test_extract_messages_cleans_placeholders(self):
         """Verify _extract_messages applies cleaning."""
         plugin = {"msg": ["Contains %1% ITM records."]}

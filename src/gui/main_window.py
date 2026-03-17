@@ -931,6 +931,7 @@ class MainWindow(tk.Tk):
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(content)
             self._set_status(f"Report exported to {path}")
+            messagebox.showinfo("Export successful", f"Report saved to:\n{path}")
         except OSError as exc:
             messagebox.showerror("Export failed", str(exc))
 
