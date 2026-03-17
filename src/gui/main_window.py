@@ -54,7 +54,6 @@ class MainWindow(tk.Tk):
         self._api: Optional[NexusAPI] = None
         self._last_report: Optional[dict] = None
         self._api_entry: Optional[ttk.Entry] = None
-        self._api_entry_menu: Optional[tk.Menu] = None
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -107,10 +106,19 @@ class MainWindow(tk.Tk):
         api_entry.pack(side="left", padx=(0, 8))
         self._api_entry = api_entry
 
-        self._api_entry_menu = tk.Menu(self, tearoff=0)
-        self._api_entry_menu.add_command(label="Copy", command=self._copy_api_key)
-        self._api_entry_menu.add_command(label="Paste", command=self._paste_api_key)
-        self._api_entry_menu.add_command(label="Select All", command=self._select_all_api_key)
+        self._context_menu = tk.Menu(self, tearoff=0)
+        self._context_menu.add_command(
+            label="Copy",
+            command=lambda: self._safe_event_generate(api_entry, "<<Copy>>"),
+        )
+        self._context_menu.add_command(
+            label="Paste",
+            command=lambda: self._safe_event_generate(api_entry, "<<Paste>>"),
+        )
+        self._context_menu.add_command(
+            label="Select All",
+            command=lambda: self._safe_event_generate(api_entry, "<<SelectAll>>"),
+        )
         api_entry.bind("<Button-3>", self._show_api_key_menu)
 
         ttk.Button(
@@ -277,19 +285,20 @@ class MainWindow(tk.Tk):
             padding=(4, 2),
         ).grid(row=0, column=0, sticky="ew")
 
-        self._quota_var = tk.StringVar(value="Quota: Unknown")
-        ttk.Label(
-            status_frame,
-            textvariable=self._quota_var,
-            anchor="e",
-            padding=(4, 2),
-        ).grid(row=0, column=1, sticky="e")
-
         ttk.Label(
             status_frame,
             text="Masterlist data: LOOT (loot.github.io) — CC BY-NC-SA 4.0",
             anchor="e",
             foreground="grey",
+            padding=(4, 2),
+        ).grid(row=0, column=1, sticky="e")
+
+        self._quota_var = tk.StringVar(value="API Quota: Unknown")
+        ttk.Label(
+            status_frame,
+            textvariable=self._quota_var,
+            anchor="e",
+            foreground="#1a73e8",
             padding=(4, 2),
         ).grid(row=0, column=2, sticky="e")
 
@@ -298,55 +307,29 @@ class MainWindow(tk.Tk):
     # ------------------------------------------------------------------
 
     def _show_api_key_menu(self, event) -> None:
-        if self._api_entry_menu is None:
-            return
         try:
-            self._api_entry_menu.tk_popup(event.x_root, event.y_root)
+            self._context_menu.tk_popup(event.x_root, event.y_root)
+        except tk.TclError:
+            pass
         finally:
-            self._api_entry_menu.grab_release()
+            self._context_menu.grab_release()
 
-    def _copy_api_key(self) -> None:
-        if self._api_entry is None:
-            return
+    def _safe_event_generate(self, widget: tk.Widget, event: str) -> None:
+        """Generate a virtual event on *widget*, ignoring clipboard errors."""
         try:
-            if self._api_entry.selection_present():
-                text = self._api_entry.selection_get()
-            else:
-                text = self._api_key_var.get()
-            self.clipboard_clear()
-            self.clipboard_append(text)
+            widget.event_generate(event)
         except tk.TclError:
-            return
+            pass
 
-    def _paste_api_key(self) -> None:
-        entry = self._api_entry
-        if entry is None:
+    def _update_quota_display(self) -> None:
+        """Safely refresh the status-bar quota label from the current API instance."""
+        if self._api is None:
             return
-        try:
-            clip_text = self.clipboard_get()
-        except tk.TclError:
-            return
-
-        current = self._api_key_var.get()
-        if entry.selection_present():
-            start = int(entry.index("sel.first"))
-            end = int(entry.index("sel.last"))
-        else:
-            start = int(entry.index(tk.INSERT))
-            end = start
-
-        new_value = current[:start] + clip_text + current[end:]
-        self._api_key_var.set(new_value)
-        entry.icursor(start + len(clip_text))
-        entry.selection_clear()
-        entry.focus_set()
-
-    def _select_all_api_key(self) -> None:
-        if self._api_entry is None:
-            return
-        self._api_entry.focus_set()
-        self._api_entry.selection_range(0, tk.END)
-        self._api_entry.icursor(tk.END)
+        quota_text = (
+            f"API Quota: Daily {self._api.daily_quota_remaining}"
+            f" | Hourly {self._api.hourly_quota_remaining}"
+        )
+        self.after(0, self._quota_var.set, quota_text)
 
     def _toggle_theme(self) -> None:
         """Switch between dark and light sv-ttk themes."""
@@ -369,7 +352,7 @@ class MainWindow(tk.Tk):
             name = info.get("name", "unknown user")
             messagebox.showinfo("API Key Valid", f"Authenticated as: {name}")
             self._api = api
-            self._quota_var.set(f"Quota: {self._api.daily_quota_remaining}")
+            self._update_quota_display()
             self._set_status(f"API key valid — logged in as {name}.")
             logger.info("API key validated for user: %s", name)
         except Exception as exc:
@@ -556,7 +539,7 @@ class MainWindow(tk.Tk):
         """Helper to cleanly finish the sync process on the main thread."""
         self._set_status("Sync complete.")
         if self._api is not None:
-            self._quota_var.set(f"Quota: {self._api.daily_quota_remaining}")
+            self._update_quota_display()
         self._populate_mod_list()
         self._btn_sync.config(state="normal")
         self._btn_analyse.config(state="normal")
