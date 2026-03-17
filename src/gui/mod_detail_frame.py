@@ -5,10 +5,13 @@ Displays the full information about a single mod that was selected in the main
 mod list, including its description and requirements.
 """
 
+import os
 import re
 import tkinter as tk
 from tkinter import ttk
 import webbrowser
+
+from PIL import Image, ImageTk
 
 
 def clean_bbcode(text: str) -> str:
@@ -50,20 +53,20 @@ class ModDetailFrame(ttk.Frame):
         self.rowconfigure(1, weight=1)
 
         # ── Title bar ──────────────────────────────────────────────────
-        title_frame = ttk.Frame(self)
-        title_frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
-        title_frame.columnconfigure(0, weight=1)
+        self._title_frame = ttk.Frame(self)
+        self._title_frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
+        self._title_frame.columnconfigure(0, weight=1)
 
         self._title_var = tk.StringVar(value="— Select a mod —")
         ttk.Label(
-            title_frame,
+            self._title_frame,
             textvariable=self._title_var,
             font=("Segoe UI", 13, "bold"),
             wraplength=400,
         ).grid(row=0, column=0, sticky="w")
 
         self._url_btn = ttk.Button(
-            title_frame,
+            self._title_frame,
             text="Open on Nexus Mods ↗",
             command=self._open_url,
             state="disabled",
@@ -78,6 +81,27 @@ class ModDetailFrame(ttk.Frame):
         self._tab_summary = self._make_text_tab("Summary")
         self._tab_description = self._make_text_tab("Description")
         self._tab_requirements = self._make_list_tab("Requirements")
+
+        # ── Placeholder (empty state) ──────────────────────────────────
+        self._placeholder_label = ttk.Label(
+            self,
+            text="Select a mod to view details",
+            font=("Segoe UI", 14),
+            anchor="center",
+            justify="center",
+        )
+
+        image_path = "logo.png"
+        if os.path.exists(image_path):
+            try:
+                img = Image.open(image_path)
+                img.thumbnail((300, 300), Image.Resampling.LANCZOS)
+                self._placeholder_img = ImageTk.PhotoImage(img)
+                self._placeholder_label.config(
+                    image=self._placeholder_img, compound="top"
+                )
+            except Exception as e:
+                print(f"Failed to load image: {e}")
 
     # ------------------------------------------------------------------
     # Tab factories
@@ -133,6 +157,10 @@ class ModDetailFrame(ttk.Frame):
             Optional ``DatabaseManager`` instance used to load related data
             (requirements, etc.).
         """
+        self._placeholder_label.grid_remove()
+        self._title_frame.grid()
+        self._notebook.grid()
+
         self._title_var.set(mod.get("name", "Unknown mod"))
         self._current_url = mod.get("mod_url", "")
         self._url_btn.configure(
@@ -162,6 +190,10 @@ class ModDetailFrame(ttk.Frame):
         ):
             self._set_text(tab, "")
         self._tab_requirements.delete(*self._tab_requirements.get_children())
+
+        self._title_frame.grid_remove()
+        self._notebook.grid_remove()
+        self._placeholder_label.grid(row=0, column=0, rowspan=2, sticky="nsew")
 
     # ------------------------------------------------------------------
     # Private helpers
