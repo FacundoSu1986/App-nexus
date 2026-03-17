@@ -113,10 +113,8 @@ class TestGetResourcePath:
         result = get_resource_path("logo.png")
         assert result == os.path.join("/tmp/fake_meipass", "logo.png")
 
-    def test_falls_back_to_cwd_without_meipass(self):
-        # Ensure _MEIPASS is not set
-        if hasattr(sys, "_MEIPASS"):
-            delattr(sys, "_MEIPASS")
+    def test_falls_back_to_cwd_without_meipass(self, monkeypatch):
+        monkeypatch.delattr(sys, "_MEIPASS", raising=False)
         result = get_resource_path("logo.png")
         expected = os.path.join(os.path.abspath("."), "logo.png")
         assert result == expected
