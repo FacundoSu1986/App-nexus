@@ -103,6 +103,8 @@ class ModDetailFrame(ttk.Frame):
             except Exception as e:
                 print(f"Failed to load image: {e}")
 
+        self.clear()
+
     # ------------------------------------------------------------------
     # Tab factories
     # ------------------------------------------------------------------
