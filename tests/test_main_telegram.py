@@ -1,5 +1,6 @@
 """Tests for the Telegram bot integration in main.py."""
 
+import os
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -50,6 +51,7 @@ class TestTelegramChatAgent:
 class TestMainTelegramIntegration:
     """Smoke-test that main() wires the Telegram bot correctly."""
 
+    @patch.dict("os.environ", {"TELEGRAM_TOKEN": "real-token"})
     @patch("main.MainWindow")
     @patch("main.sv_ttk")
     @patch("main.DovhaTelegramBot")
@@ -69,8 +71,8 @@ class TestMainTelegramIntegration:
         mock_bot_inst = MagicMock()
         mock_bot_cls.return_value = mock_bot_inst
 
-        mock_thread = MagicMock()
-        mock_thread_cls.return_value = mock_thread
+        mock_thread_inst = MagicMock()
+        mock_thread_cls.return_value = mock_thread_inst
 
         main_mod.main()
 
@@ -89,7 +91,28 @@ class TestMainTelegramIntegration:
         mock_thread_cls.assert_called_once_with(
             target=mock_bot_inst.start_polling, daemon=True,
         )
-        mock_thread.start.assert_called_once()
+        mock_thread_inst.start.assert_called_once()
 
         # GUI mainloop still called
+        mock_mw.return_value.mainloop.assert_called_once()
+
+    @patch.dict("os.environ", {}, clear=False)
+    @patch("main.MainWindow")
+    @patch("main.sv_ttk")
+    @patch("main.DovhaTelegramBot")
+    @patch("main.threading.Thread")
+    def test_bot_skipped_when_token_is_placeholder(
+        self, mock_thread_cls, mock_bot_cls, mock_sv, mock_mw,
+    ):
+        """When TELEGRAM_TOKEN is not set, the bot should not start."""
+        import main as main_mod
+
+        # Ensure the placeholder fallback is used
+        os.environ.pop("TELEGRAM_TOKEN", None)
+
+        main_mod.main()
+
+        mock_bot_cls.assert_not_called()
+        mock_thread_cls.assert_not_called()
+        # GUI should still work
         mock_mw.return_value.mainloop.assert_called_once()

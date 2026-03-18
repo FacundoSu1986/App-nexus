@@ -68,20 +68,25 @@ def main() -> None:
         os.environ.get("TELEGRAM_ALLOWED_USER_ID", "123456789")
     )
 
-    db = DatabaseManager()
-    db.connect()
-    bot_agent = _TelegramChatAgent(db)
-    telegram_bot = DovhaTelegramBot(
-        bot_token=TELEGRAM_TOKEN,
-        allowed_user_id=ALLOWED_USER_ID,
-        agent=bot_agent,
-    )
+    if TELEGRAM_TOKEN != "TU_TOKEN_ACA":
+        db = DatabaseManager()
+        db.connect()
+        bot_agent = _TelegramChatAgent(db)
+        telegram_bot = DovhaTelegramBot(
+            bot_token=TELEGRAM_TOKEN,
+            allowed_user_id=ALLOWED_USER_ID,
+            agent=bot_agent,
+        )
 
-    bot_thread = threading.Thread(
-        target=telegram_bot.start_polling, daemon=True,
-    )
-    bot_thread.start()
-    logger.info("Telegram bot thread started.")
+        bot_thread = threading.Thread(
+            target=telegram_bot.start_polling, daemon=True,
+        )
+        bot_thread.start()
+        logger.info("Telegram bot thread started.")
+    else:
+        logger.info(
+            "Telegram bot disabled — set TELEGRAM_TOKEN env var to enable."
+        )
 
     app.mainloop()
     logger.info("App-nexus exiting.")
