@@ -271,8 +271,7 @@ def download_mod_file(
                 )
                 return None
 
-            logger.info("Clicking Slow Download button...")
-            logger.info("Waiting for 5-second countdown...")
+            logger.info("Clicking Slow Download button and waiting for 5-second countdown...")
             try:
                 with page.expect_download(timeout=60000) as download_info:
                     slow_btn.click()

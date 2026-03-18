@@ -325,6 +325,7 @@ class TestDownloadModFile:
             download_mod_file("2347", "9999", out, headless=True)
 
         assert any("5-second countdown" in m for m in caplog.messages)
+        assert any("Clicking Slow Download" in m for m in caplog.messages)
 
     @patch("src.browser.nexus_browser._import_playwright")
     def test_logs_warning_when_button_missing(self, mock_import_patch, tmp_path, caplog):
