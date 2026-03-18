@@ -12,10 +12,14 @@ Or build to a standalone .exe with PyInstaller:
 import logging
 import os
 import sys
+import threading
 
 import sv_ttk
 
+from src.ai import local_agent
+from src.database.manager import DatabaseManager
 from src.gui.main_window import MainWindow
+from src.telegram.bot import DovhaTelegramBot
 
 
 def _setup_logging() -> None:
@@ -35,6 +39,21 @@ def _setup_logging() -> None:
     )
 
 
+class _TelegramChatAgent:
+    """Wrap the module-level :func:`local_agent.chat` so it exposes the
+    ``.chat(text) -> str`` interface expected by :class:`DovhaTelegramBot`."""
+
+    def __init__(self, db):
+        self._db = db
+        self._history = None
+
+    def chat(self, message: str) -> str:
+        reply, self._history = local_agent.chat(
+            message, self._db, history=self._history,
+        )
+        return reply
+
+
 def main() -> None:
     _setup_logging()
     logger = logging.getLogger(__name__)
@@ -42,6 +61,32 @@ def main() -> None:
     app = MainWindow()
 
     sv_ttk.set_theme("dark")
+
+    # -- Telegram bot --------------------------------------------------
+    TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "TU_TOKEN_ACA")
+    ALLOWED_USER_ID = int(
+        os.environ.get("TELEGRAM_ALLOWED_USER_ID", "123456789")
+    )
+
+    if TELEGRAM_TOKEN != "TU_TOKEN_ACA":
+        db = DatabaseManager()
+        db.connect()
+        bot_agent = _TelegramChatAgent(db)
+        telegram_bot = DovhaTelegramBot(
+            bot_token=TELEGRAM_TOKEN,
+            allowed_user_id=ALLOWED_USER_ID,
+            agent=bot_agent,
+        )
+
+        bot_thread = threading.Thread(
+            target=telegram_bot.start_polling, daemon=True,
+        )
+        bot_thread.start()
+        logger.info("Telegram bot thread started.")
+    else:
+        logger.info(
+            "Telegram bot disabled — set TELEGRAM_TOKEN env var to enable."
+        )
 
     app.mainloop()
     logger.info("App-nexus exiting.")
