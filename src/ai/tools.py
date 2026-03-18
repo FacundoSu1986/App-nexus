@@ -7,7 +7,11 @@ executor that dispatches tool calls to the local SQLite database.
 
 import json
 import logging
+import os
 from typing import Optional
+
+from src.browser.nexus_browser import download_mod_file
+from src.mo2.installer import install_mod
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +100,34 @@ OLLAMA_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "download_and_install_mod",
+            "description": (
+                "Downloads a mod from Nexus Mods (Free account flow) and "
+                "installs it directly into Mod Organizer 2."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nexus_id": {
+                        "type": "string",
+                        "description": "The Nexus Mods numeric ID of the mod.",
+                    },
+                    "file_id": {
+                        "type": "string",
+                        "description": "The Nexus Mods file ID to download.",
+                    },
+                    "mod_name": {
+                        "type": "string",
+                        "description": "Human-readable mod name for the MO2 folder.",
+                    },
+                },
+                "required": ["nexus_id", "file_id", "mod_name"],
+            },
+        },
+    },
 ]
 
 # ------------------------------------------------------------------
@@ -171,6 +203,31 @@ ANTHROPIC_TOOLS = [
             "required": ["mod_name"],
         },
     },
+    {
+        "name": "download_and_install_mod",
+        "description": (
+            "Downloads a mod from Nexus Mods (Free account flow) and "
+            "installs it directly into Mod Organizer 2."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nexus_id": {
+                    "type": "string",
+                    "description": "The Nexus Mods numeric ID of the mod.",
+                },
+                "file_id": {
+                    "type": "string",
+                    "description": "The Nexus Mods file ID to download.",
+                },
+                "mod_name": {
+                    "type": "string",
+                    "description": "Human-readable mod name for the MO2 folder.",
+                },
+            },
+            "required": ["nexus_id", "file_id", "mod_name"],
+        },
+    },
 ]
 
 # ------------------------------------------------------------------
@@ -185,6 +242,61 @@ CHAT_SYSTEM_PROMPT = (
     "tool, wait for its result before composing your final answer.  Be concise "
     "and helpful."
 )
+
+# ------------------------------------------------------------------
+# Standalone executor for download_and_install_mod
+# ------------------------------------------------------------------
+
+
+def execute_download_and_install(args: dict, db_manager=None) -> str:
+    """Download a mod from Nexus and install it into MO2.
+
+    Parameters
+    ----------
+    args : dict
+        Must contain ``nexus_id``, ``file_id``, and ``mod_name``.
+    db_manager : DatabaseManager, optional
+        Not currently used but kept for API consistency with other executors.
+
+    Returns
+    -------
+    str
+        A human-readable status message (never raises).
+    """
+    try:
+        nexus_id = args["nexus_id"]
+        file_id = args["file_id"]
+        mod_name = args["mod_name"]
+
+        # Resolve paths from environment / AppData defaults
+        mo2_path = os.environ.get("MO2_BASE_PATH", "")
+        app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
+        downloads_path = os.path.join(app_data, "AppNexus", "downloads")
+        os.makedirs(downloads_path, exist_ok=True)
+
+        logger.info("Starting download for %s...", mod_name)
+
+        downloaded_path = download_mod_file(
+            nexus_id, file_id, output_dir=downloads_path
+        )
+        if downloaded_path is None:
+            return "Error: Failed to download mod from Nexus."
+
+        success = install_mod(
+            archive_path=downloaded_path,
+            mod_name=mod_name,
+            mo2_base_path=mo2_path,
+        )
+        if not success:
+            return "Error: Failed to extract and install mod."
+
+        return (
+            f"Success: Mod {mod_name} successfully downloaded, "
+            "installed, and activated in MO2."
+        )
+    except Exception as e:
+        logger.error("download_and_install_mod failed: %s", e)
+        return f"Error: {e}"
 
 # ------------------------------------------------------------------
 # Tool executor
@@ -210,6 +322,7 @@ class ToolExecutor:
             "get_mod_requirements": self._get_mod_requirements,
             "get_loot_warnings": self._get_loot_warnings,
             "find_patches": self._find_patches,
+            "download_and_install_mod": self._download_and_install_mod,
         }.get(tool_name)
 
         if handler is None:
@@ -293,3 +406,7 @@ class ToolExecutor:
                     "url": m.get("mod_url", ""),
                 })
         return patches
+
+    def _download_and_install_mod(self, args: dict) -> str:
+        """Delegate to the standalone executor and return the result string."""
+        return execute_download_and_install(args, db_manager=self._db)
