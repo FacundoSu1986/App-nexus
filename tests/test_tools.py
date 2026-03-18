@@ -192,7 +192,8 @@ class TestDownloadAndInstallMod:
     @patch("src.ai.tools.install_mod")
     @patch("src.ai.tools.download_mod_file")
     @patch("os.makedirs")
-    def test_success(self, mock_makedirs, mock_download, mock_install):
+    def test_success(self, mock_makedirs, mock_download, mock_install, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
         mock_download.return_value = "/tmp/downloads/testmod.7z"
         mock_install.return_value = True
 
@@ -206,7 +207,8 @@ class TestDownloadAndInstallMod:
     @patch("src.ai.tools.install_mod")
     @patch("src.ai.tools.download_mod_file")
     @patch("os.makedirs")
-    def test_download_failure(self, mock_makedirs, mock_download, mock_install):
+    def test_download_failure(self, mock_makedirs, mock_download, mock_install, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
         mock_download.return_value = None
 
         result = execute_download_and_install(self.ARGS)
@@ -217,7 +219,8 @@ class TestDownloadAndInstallMod:
     @patch("src.ai.tools.install_mod")
     @patch("src.ai.tools.download_mod_file")
     @patch("os.makedirs")
-    def test_install_failure(self, mock_makedirs, mock_download, mock_install):
+    def test_install_failure(self, mock_makedirs, mock_download, mock_install, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
         mock_download.return_value = "/tmp/downloads/testmod.7z"
         mock_install.return_value = False
 
@@ -227,7 +230,8 @@ class TestDownloadAndInstallMod:
 
     @patch("src.ai.tools.download_mod_file")
     @patch("os.makedirs")
-    def test_exception_returns_error_string(self, mock_makedirs, mock_download):
+    def test_exception_returns_error_string(self, mock_makedirs, mock_download, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
         mock_download.side_effect = RuntimeError("Network timeout")
 
         result = execute_download_and_install(self.ARGS)
@@ -235,10 +239,18 @@ class TestDownloadAndInstallMod:
         assert result.startswith("Error:")
         assert "Network timeout" in result
 
+    def test_missing_mo2_base_path(self, monkeypatch):
+        monkeypatch.delenv("MO2_BASE_PATH", raising=False)
+
+        result = execute_download_and_install(self.ARGS)
+
+        assert result == "Error: MO2_BASE_PATH is not configured."
+
     @patch("src.ai.tools.install_mod")
     @patch("src.ai.tools.download_mod_file")
     @patch("os.makedirs")
-    def test_via_tool_executor(self, mock_makedirs, mock_download, mock_install):
+    def test_via_tool_executor(self, mock_makedirs, mock_download, mock_install, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
         mock_download.return_value = "/tmp/downloads/testmod.7z"
         mock_install.return_value = True
         mock_db = MagicMock()

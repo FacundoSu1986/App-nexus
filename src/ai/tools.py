@@ -270,6 +270,8 @@ def execute_download_and_install(args: dict, db_manager=None) -> str:
 
         # Resolve paths from environment / AppData defaults
         mo2_path = os.environ.get("MO2_BASE_PATH", "")
+        if not mo2_path:
+            return "Error: MO2_BASE_PATH is not configured."
         app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
         downloads_path = os.path.join(app_data, "AppNexus", "downloads")
         os.makedirs(downloads_path, exist_ok=True)
