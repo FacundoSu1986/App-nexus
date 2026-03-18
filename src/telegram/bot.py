@@ -86,5 +86,5 @@ class DovhaTelegramBot:
                 filters.TEXT & ~filters.COMMAND, self.handle_message
             )
         )
-        logger.info("Dovha Telegram bot is starting…")
+        logger.info("Dovha Telegram bot is starting...")
         application.run_polling()
