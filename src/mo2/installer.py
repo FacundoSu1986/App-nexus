@@ -107,7 +107,7 @@ def install_mod(
         with open(modlist_path, "w", encoding="utf-8") as fh:
             fh.writelines(lines)
 
-    except Exception:
+    except OSError:
         logger.error(
             "Failed to update modlist.txt for '%s'", mod_name, exc_info=True
         )
