@@ -3,24 +3,25 @@
 import json
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from src.ai.tools import (
     OLLAMA_TOOLS,
     ANTHROPIC_TOOLS,
     CHAT_SYSTEM_PROMPT,
     ToolExecutor,
+    execute_download_and_install,
 )
 
 
 class TestToolDefinitions:
     """Validate tool schema structure."""
 
-    def test_ollama_tools_has_four_tools(self):
-        assert len(OLLAMA_TOOLS) == 4
+    def test_ollama_tools_has_five_tools(self):
+        assert len(OLLAMA_TOOLS) == 5
 
-    def test_anthropic_tools_has_four_tools(self):
-        assert len(ANTHROPIC_TOOLS) == 4
+    def test_anthropic_tools_has_five_tools(self):
+        assert len(ANTHROPIC_TOOLS) == 5
 
     def test_ollama_tool_names(self):
         names = [t["function"]["name"] for t in OLLAMA_TOOLS]
@@ -28,6 +29,7 @@ class TestToolDefinitions:
         assert "get_mod_requirements" in names
         assert "get_loot_warnings" in names
         assert "find_patches" in names
+        assert "download_and_install_mod" in names
 
     def test_anthropic_tool_names(self):
         names = [t["name"] for t in ANTHROPIC_TOOLS]
@@ -35,6 +37,7 @@ class TestToolDefinitions:
         assert "get_mod_requirements" in names
         assert "get_loot_warnings" in names
         assert "find_patches" in names
+        assert "download_and_install_mod" in names
 
     def test_ollama_tools_have_required_fields(self):
         for tool in OLLAMA_TOOLS:
@@ -57,6 +60,28 @@ class TestToolDefinitions:
     def test_chat_system_prompt_is_nonempty(self):
         assert len(CHAT_SYSTEM_PROMPT) > 50
         assert "Skyrim" in CHAT_SYSTEM_PROMPT
+
+    def test_download_and_install_mod_schema_ollama(self):
+        tool = next(
+            t for t in OLLAMA_TOOLS
+            if t["function"]["name"] == "download_and_install_mod"
+        )
+        params = tool["function"]["parameters"]
+        assert set(params["required"]) == {"nexus_id", "file_id", "mod_name"}
+        assert "nexus_id" in params["properties"]
+        assert "file_id" in params["properties"]
+        assert "mod_name" in params["properties"]
+
+    def test_download_and_install_mod_schema_anthropic(self):
+        tool = next(
+            t for t in ANTHROPIC_TOOLS
+            if t["name"] == "download_and_install_mod"
+        )
+        schema = tool["input_schema"]
+        assert set(schema["required"]) == {"nexus_id", "file_id", "mod_name"}
+        assert "nexus_id" in schema["properties"]
+        assert "file_id" in schema["properties"]
+        assert "mod_name" in schema["properties"]
 
 
 class TestToolExecutor:
@@ -157,3 +182,82 @@ class TestToolExecutor:
         result = json.loads(raw)
         assert "error" in result
         assert "DB error" in result["error"]
+
+
+class TestDownloadAndInstallMod:
+    """Test the download_and_install_mod tool."""
+
+    ARGS = {"nexus_id": "1234", "file_id": "5678", "mod_name": "TestMod"}
+
+    @patch("src.ai.tools.install_mod")
+    @patch("src.ai.tools.download_mod_file")
+    @patch("os.makedirs")
+    def test_success(self, mock_makedirs, mock_download, mock_install, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
+        mock_download.return_value = "/tmp/downloads/testmod.7z"
+        mock_install.return_value = True
+
+        result = execute_download_and_install(self.ARGS)
+
+        assert result.startswith("Success:")
+        assert "TestMod" in result
+        mock_download.assert_called_once()
+        mock_install.assert_called_once()
+
+    @patch("src.ai.tools.install_mod")
+    @patch("src.ai.tools.download_mod_file")
+    @patch("os.makedirs")
+    def test_download_failure(self, mock_makedirs, mock_download, mock_install, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
+        mock_download.return_value = None
+
+        result = execute_download_and_install(self.ARGS)
+
+        assert result == "Error: Failed to download mod from Nexus."
+        mock_install.assert_not_called()
+
+    @patch("src.ai.tools.install_mod")
+    @patch("src.ai.tools.download_mod_file")
+    @patch("os.makedirs")
+    def test_install_failure(self, mock_makedirs, mock_download, mock_install, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
+        mock_download.return_value = "/tmp/downloads/testmod.7z"
+        mock_install.return_value = False
+
+        result = execute_download_and_install(self.ARGS)
+
+        assert result == "Error: Failed to extract and install mod."
+
+    @patch("src.ai.tools.download_mod_file")
+    @patch("os.makedirs")
+    def test_exception_returns_error_string(self, mock_makedirs, mock_download, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
+        mock_download.side_effect = RuntimeError("Network timeout")
+
+        result = execute_download_and_install(self.ARGS)
+
+        assert result.startswith("Error:")
+        assert "Network timeout" in result
+
+    def test_missing_mo2_base_path(self, monkeypatch):
+        monkeypatch.delenv("MO2_BASE_PATH", raising=False)
+
+        result = execute_download_and_install(self.ARGS)
+
+        assert result == "Error: MO2_BASE_PATH is not configured."
+
+    @patch("src.ai.tools.install_mod")
+    @patch("src.ai.tools.download_mod_file")
+    @patch("os.makedirs")
+    def test_via_tool_executor(self, mock_makedirs, mock_download, mock_install, monkeypatch):
+        monkeypatch.setenv("MO2_BASE_PATH", "/fake/mo2")
+        mock_download.return_value = "/tmp/downloads/testmod.7z"
+        mock_install.return_value = True
+        mock_db = MagicMock()
+
+        executor = ToolExecutor(mock_db)
+        raw = executor.execute("download_and_install_mod", self.ARGS)
+        result = json.loads(raw)
+
+        assert "Success" in result
+        assert "TestMod" in result
