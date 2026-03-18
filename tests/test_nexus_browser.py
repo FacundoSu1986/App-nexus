@@ -356,3 +356,57 @@ class TestDownloadModFile:
 
         assert result is None
         assert any("Network error" in m for m in caplog.messages)
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_returns_none_on_download_timeout(self, mock_import_patch, tmp_path, caplog):
+        """When the download itself times out (e.g. countdown stalls), return None."""
+        mock_slow_btn = MagicMock()
+        mock_import, mock_page, _ = self._build_mocks(slow_btn=mock_slow_btn)
+        mock_import_patch.return_value = mock_import.return_value
+
+        # Build a context manager whose __exit__ raises TimeoutError,
+        # simulating a Playwright download timeout after the click.
+        download_cm = MagicMock()
+        download_cm.__enter__ = MagicMock(return_value=download_cm)
+        download_cm.__exit__ = MagicMock(side_effect=TimeoutError("Download timeout"))
+        mock_page.expect_download.return_value = download_cm
+
+        out = str(tmp_path / "downloads")
+        with caplog.at_level(logging.WARNING, logger="src.browser.nexus_browser"):
+            result = download_mod_file("2347", "9999", out, headless=True)
+
+        assert result is None
+        assert any("Download timed out" in m for m in caplog.messages)
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_returns_none_on_navigation_error(self, mock_import_patch, tmp_path, caplog):
+        """When page navigation fails due to a network error, return None."""
+        mock_import, mock_page, _ = self._build_mocks()
+        mock_import_patch.return_value = mock_import.return_value
+        mock_page.goto.side_effect = ConnectionError("Connection refused")
+
+        out = str(tmp_path / "downloads")
+        with caplog.at_level(logging.WARNING, logger="src.browser.nexus_browser"):
+            result = download_mod_file("2347", "9999", out, headless=True)
+
+        assert result is None
+        assert any("Network error navigating" in m for m in caplog.messages)
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_save_as_receives_correct_path(self, mock_import_patch, tmp_path):
+        """Verify save_as is called with output_dir / suggested_filename."""
+        mock_download = MagicMock()
+        mock_download.suggested_filename = "SkyUI-5.2.zip"
+
+        mock_slow_btn = MagicMock()
+        mock_import, _, _ = self._build_mocks(
+            slow_btn=mock_slow_btn, download_obj=mock_download,
+        )
+        mock_import_patch.return_value = mock_import.return_value
+
+        out = str(tmp_path / "downloads")
+        result = download_mod_file("2347", "9999", out, headless=True)
+
+        expected = os.path.join(out, "SkyUI-5.2.zip")
+        mock_download.save_as.assert_called_once_with(expected)
+        assert result == os.path.abspath(expected)
