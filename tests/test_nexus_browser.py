@@ -196,10 +196,16 @@ class TestDownloadPageUrl:
 
 
 class TestDownloadModFile:
-    def _build_mocks(self, *, slow_btn=None, download_obj=None):
+    def _build_mocks(self, *, slow_btn=None, download_obj=None,
+                     wait_for_selector_side_effect=None):
         """Return (mock_import, mock_page, mock_context) with common wiring."""
         mock_page = MagicMock()
-        mock_page.query_selector.return_value = slow_btn
+
+        # Support both returning a value and raising on wait_for_selector
+        if wait_for_selector_side_effect is not None:
+            mock_page.wait_for_selector.side_effect = wait_for_selector_side_effect
+        else:
+            mock_page.wait_for_selector.return_value = slow_btn
 
         if download_obj is not None:
             download_cm = MagicMock()
@@ -246,8 +252,10 @@ class TestDownloadModFile:
 
     @patch("src.browser.nexus_browser._import_playwright")
     def test_returns_none_when_button_missing(self, mock_import_patch, tmp_path):
-        """When the Slow Download button is not found, return None."""
-        mock_import, _, _ = self._build_mocks(slow_btn=None)
+        """When the Slow Download button is not found (TimeoutError), return None."""
+        mock_import, _, _ = self._build_mocks(
+            wait_for_selector_side_effect=TimeoutError("Timeout"),
+        )
         mock_import_patch.return_value = mock_import.return_value
 
         out = str(tmp_path / "downloads")
@@ -272,7 +280,9 @@ class TestDownloadModFile:
     @patch("src.browser.nexus_browser._import_playwright")
     def test_creates_output_directory(self, mock_import_patch, tmp_path):
         """Output directory is created if it doesn't exist."""
-        mock_import, _, _ = self._build_mocks(slow_btn=None)
+        mock_import, _, _ = self._build_mocks(
+            wait_for_selector_side_effect=TimeoutError("Timeout"),
+        )
         mock_import_patch.return_value = mock_import.return_value
 
         nested = str(tmp_path / "a" / "b" / "c")
@@ -283,7 +293,9 @@ class TestDownloadModFile:
     @patch("src.browser.nexus_browser._import_playwright")
     def test_uses_persistent_context_with_user_data_dir(self, mock_import_patch, tmp_path):
         """When user_data_dir is provided, launch_persistent_context is used."""
-        mock_import, _, _ = self._build_mocks(slow_btn=None)
+        mock_import, _, _ = self._build_mocks(
+            wait_for_selector_side_effect=TimeoutError("Timeout"),
+        )
         mock_import_patch.return_value = mock_import.return_value
 
         # Access the mock_pw from inside the lambda/context-manager
@@ -316,8 +328,10 @@ class TestDownloadModFile:
 
     @patch("src.browser.nexus_browser._import_playwright")
     def test_logs_warning_when_button_missing(self, mock_import_patch, tmp_path, caplog):
-        """Verify a warning is logged when the Slow Download button is missing."""
-        mock_import, _, _ = self._build_mocks(slow_btn=None)
+        """Verify a warning is logged when the Slow Download button times out."""
+        mock_import, _, _ = self._build_mocks(
+            wait_for_selector_side_effect=TimeoutError("Timeout"),
+        )
         mock_import_patch.return_value = mock_import.return_value
 
         out = str(tmp_path / "downloads")
@@ -325,3 +339,19 @@ class TestDownloadModFile:
             download_mod_file("2347", "9999", out, headless=True)
 
         assert any("Slow Download button not found" in m for m in caplog.messages)
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_returns_none_on_network_error(self, mock_import_patch, tmp_path, caplog):
+        """When a network error occurs during download, return None and log."""
+        mock_slow_btn = MagicMock()
+        mock_import, mock_page, _ = self._build_mocks(slow_btn=mock_slow_btn)
+        mock_import_patch.return_value = mock_import.return_value
+        # Simulate a network disconnection during expect_download
+        mock_page.expect_download.side_effect = ConnectionError("Connection lost")
+
+        out = str(tmp_path / "downloads")
+        with caplog.at_level(logging.WARNING, logger="src.browser.nexus_browser"):
+            result = download_mod_file("2347", "9999", out, headless=True)
+
+        assert result is None
+        assert any("Network error" in m for m in caplog.messages)

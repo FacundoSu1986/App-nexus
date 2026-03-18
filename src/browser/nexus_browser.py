@@ -230,6 +230,11 @@ def download_mod_file(
 
     os.makedirs(output_dir, exist_ok=True)
 
+    try:
+        from playwright.sync_api import TimeoutError as PlaywrightTimeout
+    except ImportError:
+        PlaywrightTimeout = TimeoutError
+
     with sp() as pw:
         launch_kwargs: dict = {
             "headless": headless,
@@ -248,21 +253,26 @@ def download_mod_file(
 
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            logger.info("Page loaded for mod %s file %s", nexus_id, file_id)
 
-            slow_btn = page.query_selector(
-                "a:has-text('Slow download'), "
-                "button:has-text('Slow'), "
-                "#slowDownloadButton"
-            )
-            if not slow_btn:
+            try:
+                slow_btn = page.wait_for_selector(
+                    "button#slowDownloadButton, "
+                    "a:has-text('Slow'), "
+                    "button:has-text('Slow download')",
+                    timeout=15000,
+                )
+            except PlaywrightTimeout:
                 logger.warning(
-                    "Slow Download button not found on page for mod %s file %s",
+                    "Slow Download button not found on page for mod %s file %s "
+                    "— user may not be logged in or Premium may be required",
                     nexus_id,
                     file_id,
                 )
                 return None
 
-            logger.info("Waiting for Nexus 5-second countdown...")
+            logger.info("Clicking Slow Download button...")
+            logger.info("Waiting for 5-second countdown...")
             try:
                 with page.expect_download(timeout=60000) as download_info:
                     slow_btn.click()
@@ -274,6 +284,21 @@ def download_mod_file(
                 abs_path = os.path.abspath(dest)
                 logger.info("Download saved to %s", abs_path)
                 return abs_path
+            except PlaywrightTimeout:
+                logger.warning(
+                    "Download timed out for mod %s file %s",
+                    nexus_id,
+                    file_id,
+                )
+                return None
+            except (ConnectionError, OSError) as exc:
+                logger.warning(
+                    "Network error during download for mod %s file %s: %s",
+                    nexus_id,
+                    file_id,
+                    exc,
+                )
+                return None
             except Exception as exc:
                 logger.warning(
                     "Download failed for mod %s file %s: %s",
@@ -283,6 +308,14 @@ def download_mod_file(
                 )
                 return None
 
+        except (ConnectionError, OSError) as exc:
+            logger.warning(
+                "Network error navigating to download page for mod %s file %s: %s",
+                nexus_id,
+                file_id,
+                exc,
+            )
+            return None
         except Exception as exc:
             logger.warning(
                 "Error navigating to download page for mod %s file %s: %s",
