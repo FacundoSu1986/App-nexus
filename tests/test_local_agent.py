@@ -35,7 +35,7 @@ class TestSystemPrompt:
 class TestChatSystemPrompt:
     def test_chat_prompt_is_skyrim_focused(self):
         assert "Skyrim" in TOOLS_CHAT_SYSTEM_PROMPT
-        assert "mod compatibility assistant" in TOOLS_CHAT_SYSTEM_PROMPT
+        assert "Modding Assistant" in TOOLS_CHAT_SYSTEM_PROMPT
 
     def test_chat_tools_defined(self):
         tool_names = [t["function"]["name"] for t in OLLAMA_TOOLS]
