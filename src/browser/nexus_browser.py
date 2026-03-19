@@ -73,11 +73,10 @@ class NexusBrowser:
         self._pw_instance = sp()
         self.playwright = self._pw_instance.__enter__()
 
-        user_data_dir = os.path.join(os.getcwd(), "browser_profile")
-        os.makedirs(user_data_dir, exist_ok=True)
+        os.makedirs(DEFAULT_PROFILE_DIR, exist_ok=True)
 
         self.context = self.playwright.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
+            user_data_dir=DEFAULT_PROFILE_DIR,
             headless=self.headless,
             accept_downloads=True,
             args=["--disable-blink-features=AutomationControlled"],
