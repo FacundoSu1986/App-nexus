@@ -13,7 +13,7 @@ class TestLocalChat:
     def test_chat_system_prompt_enforces_tools(self):
         """The system prompt must force tool use and forbid hallucinations."""
         assert "Skyrim" in CHAT_SYSTEM_PROMPT
-        assert "compatibility assistant" in CHAT_SYSTEM_PROMPT
+        assert "Modding Assistant" in CHAT_SYSTEM_PROMPT
         assert "tools" in CHAT_SYSTEM_PROMPT.lower()
         assert len(OLLAMA_TOOLS) >= 1
 
