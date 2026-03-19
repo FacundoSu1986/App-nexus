@@ -10,6 +10,7 @@ from src.browser.nexus_browser import (
     _human_delay,
     MOD_PAGE_URL,
     DOWNLOAD_PAGE_URL,
+    NexusBrowser,
     extract_mod_page_data,
     download_mod_file,
 )
@@ -32,18 +33,15 @@ class TestExtractModPageData:
     @patch("src.browser.nexus_browser._import_playwright")
     def test_returns_expected_keys(self, mock_import):
         """Verify the function returns the correct dict structure."""
-        # Build the mock chain: sync_playwright -> pw -> browser -> context -> page
+        # Build the mock chain: sync_playwright -> pw -> persistent context -> page
         mock_page = MagicMock()
         mock_page.query_selector.return_value = None
 
         mock_context = MagicMock()
-        mock_context.new_page.return_value = mock_page
-
-        mock_browser = MagicMock()
-        mock_browser.new_context.return_value = mock_context
+        mock_context.pages = [mock_page]
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch.return_value = mock_browser
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
 
         # sync_playwright() returns a context manager yielding mock_pw
         mock_cm = MagicMock()
@@ -67,13 +65,10 @@ class TestExtractModPageData:
         mock_page.query_selector.return_value = mock_element
 
         mock_context = MagicMock()
-        mock_context.new_page.return_value = mock_page
-
-        mock_browser = MagicMock()
-        mock_browser.new_context.return_value = mock_context
+        mock_context.pages = [mock_page]
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch.return_value = mock_browser
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
 
         mock_cm = MagicMock()
         mock_cm.__enter__ = MagicMock(return_value=mock_pw)
@@ -114,13 +109,10 @@ class TestExtractModPageData:
         ]
 
         mock_context = MagicMock()
-        mock_context.new_page.return_value = mock_page
-
-        mock_browser = MagicMock()
-        mock_browser.new_context.return_value = mock_context
+        mock_context.pages = [mock_page]
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch.return_value = mock_browser
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
 
         mock_cm = MagicMock()
         mock_cm.__enter__ = MagicMock(return_value=mock_pw)
@@ -141,13 +133,10 @@ class TestExtractModPageData:
         mock_page.query_selector.return_value = mock_element
 
         mock_context = MagicMock()
-        mock_context.new_page.return_value = mock_page
-
-        mock_browser = MagicMock()
-        mock_browser.new_context.return_value = mock_context
+        mock_context.pages = [mock_page]
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch.return_value = mock_browser
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
 
         mock_cm = MagicMock()
         mock_cm.__enter__ = MagicMock(return_value=mock_pw)
@@ -167,13 +156,10 @@ class TestExtractModPageData:
         mock_page.query_selector.return_value = None
 
         mock_context = MagicMock()
-        mock_context.new_page.return_value = mock_page
-
-        mock_browser = MagicMock()
-        mock_browser.new_context.return_value = mock_context
+        mock_context.pages = [mock_page]
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch.return_value = mock_browser
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
 
         mock_cm = MagicMock()
         mock_cm.__enter__ = MagicMock(return_value=mock_pw)
@@ -215,13 +201,10 @@ class TestDownloadModFile:
             mock_page.expect_download.return_value = download_cm
 
         mock_context = MagicMock()
-        mock_context.new_page.return_value = mock_page
-
-        mock_browser = MagicMock()
-        mock_browser.new_context.return_value = mock_context
+        mock_context.pages = [mock_page]
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch.return_value = mock_browser
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
 
         mock_cm = MagicMock()
         mock_cm.__enter__ = MagicMock(return_value=mock_pw)
@@ -292,7 +275,7 @@ class TestDownloadModFile:
 
     @patch("src.browser.nexus_browser._import_playwright")
     def test_uses_persistent_context_with_user_data_dir(self, mock_import_patch, tmp_path):
-        """When user_data_dir is provided, launch_persistent_context is used."""
+        """When user_data_dir is provided, launch_persistent_context uses it."""
         mock_import, _, _ = self._build_mocks(
             wait_for_selector_side_effect=TimeoutError("Timeout"),
         )
@@ -303,10 +286,13 @@ class TestDownloadModFile:
         mock_cm_obj = mock_cm_fn()
         mock_pw = mock_cm_obj.__enter__()
 
+        profile = str(tmp_path / "custom_profile")
         out = str(tmp_path / "downloads")
-        download_mod_file("2347", "9999", out, user_data_dir="/fake/profile", headless=True)
+        download_mod_file("2347", "9999", out, user_data_dir=profile, headless=True)
 
         mock_pw.chromium.launch_persistent_context.assert_called_once()
+        call_args = mock_pw.chromium.launch_persistent_context.call_args
+        assert call_args[0][0] == profile
 
     @patch("src.browser.nexus_browser._import_playwright")
     def test_logs_countdown_message(self, mock_import_patch, tmp_path, caplog):
@@ -410,3 +396,99 @@ class TestDownloadModFile:
         expected = os.path.join(out, "SkyUI-5.2.zip")
         mock_download.save_as.assert_called_once_with(expected)
         assert result == os.path.abspath(expected)
+
+
+class TestNexusBrowser:
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_start_creates_persistent_context(self, mock_import):
+        """start() should use launch_persistent_context with a profile dir."""
+        mock_page = MagicMock()
+        mock_context = MagicMock()
+        mock_context.pages = [mock_page]
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_pw)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_import.return_value = lambda: mock_cm
+
+        browser = NexusBrowser(headless=True)
+        browser.start()
+
+        mock_pw.chromium.launch_persistent_context.assert_called_once()
+        assert browser.context is mock_context
+        assert browser.page is mock_page
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_start_passes_expected_kwargs(self, mock_import):
+        """start() should pass headless, accept_downloads, and args."""
+        mock_context = MagicMock()
+        mock_context.pages = [MagicMock()]
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_pw)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_import.return_value = lambda: mock_cm
+
+        browser = NexusBrowser(headless=False)
+        browser.start()
+
+        call_kwargs = mock_pw.chromium.launch_persistent_context.call_args[1]
+        assert call_kwargs["headless"] is False
+        assert call_kwargs["accept_downloads"] is True
+        assert "--disable-blink-features=AutomationControlled" in call_kwargs["args"]
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_start_falls_back_to_new_page(self, mock_import):
+        """When context.pages is empty, start() creates a new page."""
+        mock_page = MagicMock()
+        mock_context = MagicMock()
+        mock_context.pages = []
+        mock_context.new_page.return_value = mock_page
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_pw)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_import.return_value = lambda: mock_cm
+
+        browser = NexusBrowser(headless=True)
+        browser.start()
+
+        mock_context.new_page.assert_called_once()
+        assert browser.page is mock_page
+
+    @patch("src.browser.nexus_browser._import_playwright")
+    def test_stop_closes_context(self, mock_import):
+        """stop() should close the context and reset attributes."""
+        mock_context = MagicMock()
+        mock_context.pages = [MagicMock()]
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch_persistent_context.return_value = mock_context
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_pw)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_import.return_value = lambda: mock_cm
+
+        browser = NexusBrowser(headless=True)
+        browser.start()
+        browser.stop()
+
+        mock_context.close.assert_called_once()
+        assert browser.context is None
+        assert browser.page is None
+        assert browser.playwright is None
+
+    def test_stop_without_start_is_safe(self):
+        """Calling stop() without start() should not raise."""
+        browser = NexusBrowser()
+        browser.stop()  # should not raise
