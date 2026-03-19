@@ -44,9 +44,59 @@ DOWNLOAD_PAGE_URL = (
 )
 
 
+DEFAULT_PROFILE_DIR = os.path.join(os.getcwd(), "browser_profile")
+
+
 def _human_delay() -> int:
     """Return a random delay in ms to simulate human browsing speed."""
     return random.randint(2000, 4000)
+
+
+class NexusBrowser:
+    """Reusable browser wrapper that persists login sessions across runs.
+
+    Uses ``launch_persistent_context`` so cookies and local-storage survive
+    between executions.  After instantiation call :meth:`start` to open the
+    browser and :meth:`stop` to tear it down.
+    """
+
+    def __init__(self, headless: bool = True):
+        self.headless = headless
+        self.playwright = None
+        self.context = None
+        self.page = None
+        self._pw_instance = None
+
+    def start(self):
+        """Launch a persistent Chromium context and obtain a page."""
+        sp = _import_playwright()
+        self._pw_instance = sp()
+        self.playwright = self._pw_instance.__enter__()
+
+        os.makedirs(DEFAULT_PROFILE_DIR, exist_ok=True)
+
+        self.context = self.playwright.chromium.launch_persistent_context(
+            user_data_dir=DEFAULT_PROFILE_DIR,
+            headless=self.headless,
+            accept_downloads=True,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        self.page = (
+            self.context.pages[0]
+            if self.context.pages
+            else self.context.new_page()
+        )
+
+    def stop(self):
+        """Close the persistent context and stop Playwright."""
+        if self.context:
+            self.context.close()
+            self.context = None
+        if self._pw_instance:
+            self._pw_instance.__exit__(None, None, None)
+            self._pw_instance = None
+        self.playwright = None
+        self.page = None
 
 
 def extract_mod_page_data(
@@ -85,20 +135,17 @@ def extract_mod_page_data(
     }
 
     with sp() as pw:
+        profile = user_data_dir or DEFAULT_PROFILE_DIR
+        os.makedirs(profile, exist_ok=True)
         launch_kwargs: dict = {
             "headless": headless,
             "slow_mo": slow_mo,
         }
-        if user_data_dir:
-            context = pw.chromium.launch_persistent_context(
-                user_data_dir,
-                **launch_kwargs,
-            )
-            page = context.new_page()
-        else:
-            browser = pw.chromium.launch(**launch_kwargs)
-            context = browser.new_context()
-            page = context.new_page()
+        context = pw.chromium.launch_persistent_context(
+            profile,
+            **launch_kwargs,
+        )
+        page = context.pages[0] if context.pages else context.new_page()
 
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
@@ -236,20 +283,18 @@ def download_mod_file(
         PlaywrightTimeout = TimeoutError
 
     with sp() as pw:
+        profile = user_data_dir or DEFAULT_PROFILE_DIR
+        os.makedirs(profile, exist_ok=True)
         launch_kwargs: dict = {
             "headless": headless,
             "slow_mo": slow_mo,
+            "accept_downloads": True,
         }
-        if user_data_dir:
-            context = pw.chromium.launch_persistent_context(
-                user_data_dir,
-                **launch_kwargs,
-            )
-            page = context.new_page()
-        else:
-            browser = pw.chromium.launch(**launch_kwargs)
-            context = browser.new_context()
-            page = context.new_page()
+        context = pw.chromium.launch_persistent_context(
+            profile,
+            **launch_kwargs,
+        )
+        page = context.pages[0] if context.pages else context.new_page()
 
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)

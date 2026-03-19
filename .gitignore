@@ -37,3 +37,6 @@ Thumbs.db
 .coverage
 .pytest_cache/
 htmlcov/
+
+# Browser profile (persistent session data)
+browser_profile/
