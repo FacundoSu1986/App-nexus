@@ -8,6 +8,7 @@ executor that dispatches tool calls to the local SQLite database.
 import json
 import logging
 import os
+import subprocess
 from typing import Optional
 
 from src.browser.nexus_browser import download_mod_file
@@ -128,6 +129,26 @@ OLLAMA_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_shell_command",
+            "description": (
+                "Executes a shell command on the host Windows machine and "
+                "returns the standard output and standard error."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The shell command to execute.",
+                    }
+                },
+                "required": ["command"],
+            },
+        },
+    },
 ]
 
 # ------------------------------------------------------------------
@@ -228,6 +249,23 @@ ANTHROPIC_TOOLS = [
             "required": ["nexus_id", "file_id", "mod_name"],
         },
     },
+    {
+        "name": "execute_shell_command",
+        "description": (
+            "Executes a shell command on the host Windows machine and "
+            "returns the standard output and standard error."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The shell command to execute.",
+                }
+            },
+            "required": ["command"],
+        },
+    },
 ]
 
 # ------------------------------------------------------------------
@@ -300,6 +338,38 @@ def execute_download_and_install(args: dict, db_manager=None) -> str:
         logger.error("download_and_install_mod failed: %s", e)
         return f"Error: {e}"
 
+
+# ------------------------------------------------------------------
+# Standalone executor for execute_shell_command
+# ------------------------------------------------------------------
+
+
+def execute_shell(args: dict) -> str:
+    """Execute a shell command and return stdout/stderr.
+
+    Parameters
+    ----------
+    args : dict
+        Must contain ``command``.
+
+    Returns
+    -------
+    str
+        Combined stdout and stderr output (never raises).
+    """
+    try:
+        command = args["command"]
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True, timeout=60
+        )
+        return f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    except subprocess.TimeoutExpired:
+        return "Error: Command timed out after 60 seconds."
+    except Exception as e:
+        logger.error("execute_shell_command failed: %s", e)
+        return f"Error: {e}"
+
+
 # ------------------------------------------------------------------
 # Tool executor
 # ------------------------------------------------------------------
@@ -325,6 +395,7 @@ class ToolExecutor:
             "get_loot_warnings": self._get_loot_warnings,
             "find_patches": self._find_patches,
             "download_and_install_mod": self._download_and_install_mod,
+            "execute_shell_command": self._execute_shell_command,
         }.get(tool_name)
 
         if handler is None:
@@ -412,3 +483,7 @@ class ToolExecutor:
     def _download_and_install_mod(self, args: dict) -> str:
         """Delegate to the standalone executor and return the result string."""
         return execute_download_and_install(args, db_manager=self._db)
+
+    def _execute_shell_command(self, args: dict) -> str:
+        """Delegate to the standalone executor and return the result string."""
+        return execute_shell(args)

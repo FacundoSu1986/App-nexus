@@ -1,6 +1,7 @@
 """Tests for AI function-calling tools."""
 
 import json
+import subprocess
 
 import pytest
 from unittest.mock import MagicMock, patch
@@ -11,17 +12,18 @@ from src.ai.tools import (
     CHAT_SYSTEM_PROMPT,
     ToolExecutor,
     execute_download_and_install,
+    execute_shell,
 )
 
 
 class TestToolDefinitions:
     """Validate tool schema structure."""
 
-    def test_ollama_tools_has_five_tools(self):
-        assert len(OLLAMA_TOOLS) == 5
+    def test_ollama_tools_has_six_tools(self):
+        assert len(OLLAMA_TOOLS) == 6
 
-    def test_anthropic_tools_has_five_tools(self):
-        assert len(ANTHROPIC_TOOLS) == 5
+    def test_anthropic_tools_has_six_tools(self):
+        assert len(ANTHROPIC_TOOLS) == 6
 
     def test_ollama_tool_names(self):
         names = [t["function"]["name"] for t in OLLAMA_TOOLS]
@@ -30,6 +32,7 @@ class TestToolDefinitions:
         assert "get_loot_warnings" in names
         assert "find_patches" in names
         assert "download_and_install_mod" in names
+        assert "execute_shell_command" in names
 
     def test_anthropic_tool_names(self):
         names = [t["name"] for t in ANTHROPIC_TOOLS]
@@ -38,6 +41,7 @@ class TestToolDefinitions:
         assert "get_loot_warnings" in names
         assert "find_patches" in names
         assert "download_and_install_mod" in names
+        assert "execute_shell_command" in names
 
     def test_ollama_tools_have_required_fields(self):
         for tool in OLLAMA_TOOLS:
@@ -261,3 +265,50 @@ class TestDownloadAndInstallMod:
 
         assert "Success" in result
         assert "TestMod" in result
+
+
+class TestExecuteShellCommand:
+    """Test the execute_shell_command tool."""
+
+    @patch("src.ai.tools.subprocess.run")
+    def test_successful_command(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="hello world\n", stderr="")
+        result = execute_shell({"command": "echo hello world"})
+        assert "STDOUT:" in result
+        assert "hello world" in result
+        assert "STDERR:" in result
+        mock_run.assert_called_once_with(
+            "echo hello world", shell=True, capture_output=True, text=True, timeout=60
+        )
+
+    @patch("src.ai.tools.subprocess.run")
+    def test_command_with_stderr(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="", stderr="warning: something\n")
+        result = execute_shell({"command": "some_cmd"})
+        assert "STDOUT:" in result
+        assert "STDERR:" in result
+        assert "warning: something" in result
+
+    @patch("src.ai.tools.subprocess.run")
+    def test_timeout(self, mock_run):
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="sleep 999", timeout=60)
+        result = execute_shell({"command": "sleep 999"})
+        assert "Error" in result
+        assert "timed out" in result
+
+    @patch("src.ai.tools.subprocess.run")
+    def test_general_exception(self, mock_run):
+        mock_run.side_effect = OSError("Permission denied")
+        result = execute_shell({"command": "restricted_cmd"})
+        assert "Error" in result
+        assert "Permission denied" in result
+
+    @patch("src.ai.tools.subprocess.run")
+    def test_via_tool_executor(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="output\n", stderr="")
+        mock_db = MagicMock()
+        executor = ToolExecutor(mock_db)
+        raw = executor.execute("execute_shell_command", {"command": "echo output"})
+        result = json.loads(raw)
+        assert "STDOUT:" in result
+        assert "output" in result
